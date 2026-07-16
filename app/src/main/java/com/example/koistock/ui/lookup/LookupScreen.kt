@@ -1,14 +1,20 @@
 package com.example.koistock.ui.lookup
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -18,6 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.koistock.ui.common.FeatureGuideButton
+import com.example.koistock.ui.theme.Ash
+import com.example.koistock.ui.theme.ElectricBlue
+import com.example.koistock.ui.theme.PaperMist
+import com.example.koistock.ui.theme.SoftMint
+import com.example.koistock.ui.theme.Tangerine
 
 @Composable
 fun LookupScreen(
@@ -33,78 +44,175 @@ fun LookupScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, Ash),
+            shape = RoundedCornerShape(16.dp),
         ) {
-            Text(
-                text = "Tra cứu hàng hóa",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            FeatureGuideButton(
-                title = "Hướng dẫn tra cứu",
-                quickSteps = listOf(
-                    "Nhấn Quét thẻ để đọc một EPC.",
-                    "Nếu tag đã map, app sẽ hiện thông tin SKU và vị trí.",
-                    "Nếu tag chưa map, chuyển sang màn Gán tag.",
-                ),
-                notes = listOf(
-                    "Giữ tag gần đầu đọc để tăng ổn định.",
-                    "Tra cứu hiện cần dữ liệu SKU/tag đã có trong hệ thống.",
-                ),
-            )
-        }
-        Text(
-            text = "Quét một thẻ RFID để xem thông tin sản phẩm, tồn kho và vị trí hiện tại.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Button(
-            onClick = vm::scanOnce,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Quét thẻ")
-        }
-
-        Card {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                when (val state = result) {
-                    LookupResult.Idle -> {
-                        Text("Sẵn sàng quét", style = MaterialTheme.typography.titleMedium)
-                        Text("Chưa có kết quả nào. Bấm Quét thẻ để bắt đầu.")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(SoftMint, RoundedCornerShape(999.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text("PRODUCT LOOKUP", style = MaterialTheme.typography.labelMedium, color = ElectricBlue)
                     }
-
-                    LookupResult.NotFound -> {
-                        Text("Không đọc được tag", style = MaterialTheme.typography.titleMedium)
-                        Text("Kiểm tra kết nối R6 hoặc đưa tag lại gần đầu đọc hơn.")
+                    FeatureGuideButton(
+                        title = "Hướng dẫn tra cứu",
+                        quickSteps = listOf(
+                            "Nhấn Quét thẻ để đọc một EPC.",
+                            "Nếu tag đã map, app sẽ hiện SKU, tồn và vị trí.",
+                            "Nếu tag chưa map, chuyển sang màn Gán tag.",
+                        ),
+                        notes = listOf(
+                            "Ưu tiên test với backend đang online.",
+                            "Màn này đã được bọc lỗi để không crash app khi API lỗi.",
+                        ),
+                    )
+                }
+                Text(
+                    text = "Tra cứu hàng hóa",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Quét một thẻ RFID để xem thông tin sản phẩm, tồn kho và vị trí hiện tại theo backend mới trên Koi.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = vm::scanOnce,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Quét thẻ")
                     }
-
-                    is LookupResult.UnknownTag -> {
-                        Text("Tag chưa được map", style = MaterialTheme.typography.titleMedium)
-                        Text("EPC: ${state.epc}")
-                        Button(onClick = { onAssign(state.epc) }) {
-                            Text("Gán tag này")
-                        }
-                    }
-
-                    is LookupResult.Found -> {
-                        Text(state.product.name, style = MaterialTheme.typography.titleLarge)
-                        Text("SKU: ${state.product.sku}")
-                        Text("Đơn vị: ${state.product.unit}")
-                        Text("Tồn: ${state.product.quantity}")
-                        Text("Vị trí mặc định: ${state.product.locationCode}")
-                        Text("EPC: ${state.tag.epc}")
+                    OutlinedButton(
+                        onClick = vm::clear,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Reset")
                     }
                 }
             }
         }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, Ash),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                when (val state = result) {
+                    LookupResult.Idle -> LookupInfoBlock(
+                        badge = "READY",
+                        title = "Sẵn sàng quét",
+                        message = "Chưa có kết quả nào. Bấm Quét thẻ để bắt đầu.",
+                    )
+
+                    LookupResult.NotFound -> LookupInfoBlock(
+                        badge = "NO READ",
+                        title = "Không đọc được tag",
+                        message = "Kiểm tra kết nối R6 hoặc đưa tag lại gần đầu đọc hơn.",
+                        badgeColor = Tangerine,
+                    )
+
+                    is LookupResult.UnknownTag -> {
+                        LookupInfoBlock(
+                            badge = "UNMAPPED",
+                            title = "Tag chưa được map",
+                            message = "EPC ${state.epc} chưa có trong hệ thống.",
+                            badgeColor = Tangerine,
+                        )
+                        OutlinedButton(onClick = { onAssign(state.epc) }) {
+                            Text("Gán tag này")
+                        }
+                    }
+
+                    is LookupResult.Error -> LookupInfoBlock(
+                        badge = "ERROR",
+                        title = "Tra cứu thất bại",
+                        message = state.message,
+                        badgeColor = Tangerine,
+                    )
+
+                    is LookupResult.Found -> {
+                        LookupInfoBlock(
+                            badge = "FOUND",
+                            title = state.product.name,
+                            message = "Đã tìm thấy dữ liệu tag và sản phẩm.",
+                        )
+                        LookupField("SKU", state.product.sku)
+                        LookupField("Đơn vị", state.product.unit)
+                        LookupField("Tracking", state.product.trackingMode.name)
+                        LookupField("Tồn hiện tại", state.product.quantity.toString())
+                        LookupField("Vị trí", state.product.locationCode.ifBlank { "Chưa gán" })
+                        LookupField("EPC", state.tag.epc)
+                        LookupField("Serial", state.tag.unitSerial ?: "—")
+                    }
+                }
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = PaperMist),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("Gợi ý thao tác", style = MaterialTheme.typography.titleMedium)
+                Text("• Test trước với EPC đã có thật trong backend.", style = MaterialTheme.typography.bodyMedium)
+                Text("• Nếu màn này báo lỗi, chụp nguyên message để em fix tiếp nhanh hơn.", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LookupInfoBlock(
+    badge: String,
+    title: String,
+    message: String,
+    badgeColor: androidx.compose.ui.graphics.Color = ElectricBlue,
+) {
+    Box(
+        modifier = Modifier
+            .background(badgeColor.copy(alpha = 0.12f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(badge, style = MaterialTheme.typography.labelMedium, color = badgeColor)
+    }
+    Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+    Text(message, style = MaterialTheme.typography.bodyMedium)
+}
+
+@Composable
+private fun LookupField(label: String, value: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(PaperMist, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
     }
 }

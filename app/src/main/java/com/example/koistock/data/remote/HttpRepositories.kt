@@ -11,22 +11,23 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import retrofit2.HttpException
+import java.io.IOException
 
 class HttpProductRepository(
     private val api: KoiApiService,
 ) : ProductRepo {
     private val products = MutableStateFlow<List<Product>>(emptyList())
 
-    override suspend fun getBySku(sku: String): Product? {
+    override suspend fun getBySku(sku: String): Product? = runCatching {
         val item = api.getItem(sku).data
-        return item.toProduct(aggregateQuantityFor(item.itemCode), defaultLocationFor(item.itemCode))
-    }
+        item.toProduct(aggregateQuantityFor(item.itemCode), defaultLocationFor(item.itemCode))
+    }.getOrNull()
 
     override fun observeAll(): Flow<List<Product>> = products.asStateFlow()
 
     suspend fun refresh() {
-        val items = api.getItems().data.filter { it.isActive }
-        val bins = api.getBins().data
+        val items = runCatching { api.getItems().data.filter { it.isActive } }.getOrDefault(emptyList())
+        val bins = runCatching { api.getBins().data }.getOrDefault(emptyList())
         val tagsByItem = items.associate { item ->
             item.itemCode to runCatching { api.getTagsByItem(item.itemCode).data }.getOrDefault(emptyList())
         }
@@ -92,6 +93,8 @@ class HttpTagRepository(
     override suspend fun getByEpc(epc: String): TagMapping? = try {
         api.getTag(epc).data.toTagMapping()
     } catch (_: HttpException) {
+        null
+    } catch (_: IOException) {
         null
     }
 

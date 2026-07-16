@@ -12,34 +12,41 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = ForestGreenDark,
-    secondary = LeafGreenDark,
-    tertiary = ForestGreenDark,
-    background = DeepForest,
-    surface = MossSurface,
-    onPrimary = DeepForest,
-    onSecondary = DeepForest,
-    onBackground = MintCream,
-    onSurface = MintCream,
+    primary = ElectricBlue,
+    secondary = SoftMint,
+    tertiary = Lavender,
+    background = DarkCanvas,
+    surface = DarkSurface,
+    surfaceVariant = Charcoal,
+    outline = DarkBorder,
+    onPrimary = CanvasWhite,
+    onSecondary = Charcoal,
+    onBackground = DarkText,
+    onSurface = DarkText,
+    onSurfaceVariant = Silver,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = ForestGreen,
-    secondary = LeafGreen,
-    tertiary = AlertAmber,
-    background = MintCream,
-    surface = Color.White,
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = DeepInk,
-    onSurface = DeepInk,
+    primary = ElectricBlue,
+    secondary = SoftMint,
+    tertiary = Tangerine,
+    background = CanvasWhite,
+    surface = CanvasWhite,
+    surfaceVariant = PaperMist,
+    outline = Ash,
+    outlineVariant = Smoke,
+    onPrimary = CanvasWhite,
+    onSecondary = Charcoal,
+    onTertiary = CanvasWhite,
+    onBackground = Charcoal,
+    onSurface = Charcoal,
+    onSurfaceVariant = Fog,
 )
 
 @Composable
 fun KOIStockTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {

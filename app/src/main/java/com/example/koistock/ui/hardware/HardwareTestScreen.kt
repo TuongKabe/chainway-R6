@@ -1,17 +1,24 @@
 package com.example.koistock.ui.hardware
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -23,16 +30,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalClipboardManager
 import com.example.koistock.device.ConnectionState
 import com.example.koistock.ui.common.FeatureGuideButton
+import com.example.koistock.ui.theme.Ash
+import com.example.koistock.ui.theme.ElectricBlue
+import com.example.koistock.ui.theme.PaperMist
+import com.example.koistock.ui.theme.SoftMint
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @Composable
 fun HardwareTestScreen(vm: HardwareTestViewModel) {
+    val clipboard = LocalClipboardManager.current
     val connectionState by vm.connectionState.collectAsState()
     val battery by vm.battery.collectAsState()
     val singleScan by vm.singleScan.collectAsState()
@@ -53,107 +68,212 @@ fun HardwareTestScreen(vm: HardwareTestViewModel) {
     var locateEpc by remember { mutableStateOf("") }
     var oldEpc by remember { mutableStateOf("") }
     var newEpc by remember { mutableStateOf("") }
+    var copyFeedback by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(vm) {
         onDispose { vm.clear() }
     }
 
+    fun copyText(label: String, value: String) {
+        clipboard.setText(AnnotatedString(value))
+        copyFeedback = "Đã copy $label"
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, Ash),
+            shape = RoundedCornerShape(16.dp),
         ) {
-            Text(
-                "Kiểm tra phần cứng R6",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            FeatureGuideButton(
-                title = "Hướng dẫn test phần cứng",
-                quickSteps = listOf(
-                    "Bật Trigger test only để đo thời gian bóp cò thật mà không kích quét.",
-                    "Theo rule mới: dưới 1000ms là Bấm, từ 1000ms trở lên là Giữ.",
-                    "Xem bảng time trigger để đối chiếu từng lần bóp cò trên máy.",
-                    "Tắt Trigger test only khi muốn dùng cò để quét thực tế.",
-                ),
-                notes = listOf(
-                    "Bảng time trigger lưu 12 lần bóp cò gần nhất.",
-                    "Khi Trigger test only đang bật, cò trên máy sẽ không tự quét tag.",
-                ),
-            )
-        }
-
-        Card {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Bảng debug", style = MaterialTheme.typography.titleMedium)
-                Text("Kết nối: ${connectionLabel(connectionState)}")
-                Text("Trigger: ${if (triggerPressed) "Đang nhấn" else "Đã nhả"}")
-                Text("Giữ cò: ${if (triggerHeld) "Đang giữ" else "Chưa giữ"}")
-                Text("Số nhịp trigger: $triggerCount")
-                Text("Lần nhấn gần nhất: ${formatTimestamp(lastTriggerAt)}")
-                Text("Thời gian cò gần nhất: ${formatHold(lastTriggerHoldMs)}")
-                Text("Phân loại gần nhất: ${classify(lastTriggerHoldMs)}")
-                Text("Chế độ cò: ${if (triggerTestOnly) "Trigger test only" else "Cò điều khiển quét"}")
-                Text("EPC cuối: ${lastSeenEpc ?: "Chưa có"}")
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Trigger test only", fontWeight = FontWeight.Medium)
-                        Text(
-                            "Bật để kiểm tra DOWN/UP và đo thời gian bóp cò, không chạy quét bằng cò.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    Box(
+                        modifier = Modifier
+                            .background(SoftMint, RoundedCornerShape(999.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text("RFID TEST LAB", style = MaterialTheme.typography.labelMedium, color = ElectricBlue)
                     }
-                    Switch(
-                        checked = triggerTestOnly,
-                        onCheckedChange = vm::setTriggerTestOnly,
+                    FeatureGuideButton(
+                        title = "Hướng dẫn test phần cứng",
+                        quickSteps = listOf(
+                            "Bật Trigger test only để test cò mà không kích quét.",
+                            "Inventory để gom EPC và copy nhanh cho debug.",
+                            "Dùng Copy EPC để gửi log/test case nhanh hơn.",
+                        ),
+                        notes = listOf(
+                            "Rule hiện tại: dưới 1000ms = Bấm, từ 1000ms trở lên = Giữ.",
+                            "Mục test đã có nút copy các EPC quét được.",
+                        ),
                     )
+                }
+
+                Text(
+                    "Kiểm tra phần cứng R6",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "Màn debug này ưu tiên đọc nhanh trạng thái reader, EPC vừa quét và log trigger để anh test ngoài hiện trường.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    copyFeedback ?: "Sẵn sàng test reader.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        HardwareCard(title = "Tổng quan") {
+            HardwareField("Kết nối", connectionLabel(connectionState))
+            HardwareField("Pin", battery?.let { "$it%" } ?: "Chưa đọc")
+            HardwareField("Trigger", if (triggerPressed) "Đang nhấn" else "Đã nhả")
+            HardwareField("Giữ cò", if (triggerHeld) "Đang giữ" else "Chưa giữ")
+            HardwareField("Số nhịp trigger", triggerCount.toString())
+            HardwareField("Lần nhấn gần nhất", formatTimestamp(lastTriggerAt))
+            HardwareField("Thời gian cò gần nhất", formatHold(lastTriggerHoldMs))
+            HardwareField("Phân loại", classify(lastTriggerHoldMs))
+            HardwareField("EPC cuối", lastSeenEpc ?: "Chưa có")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Trigger test only", fontWeight = FontWeight.Medium)
+                    Text(
+                        "Bật để chỉ đo DOWN/UP và thời gian bóp cò.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(
+                    checked = triggerTestOnly,
+                    onCheckedChange = vm::setTriggerTestOnly,
+                )
+            }
+        }
+
+        HardwareCard(title = "Quét đơn") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = vm::refreshBattery) { Text("Đọc pin") }
+                Button(onClick = vm::scanSingle) { Text("Quét 1 thẻ") }
+            }
+            HardwareField("EPC đơn", singleScan ?: "Chưa có")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { singleScan?.let { copyText("EPC đơn", it) } },
+                    enabled = !singleScan.isNullOrBlank(),
+                ) { Text("Copy EPC đơn") }
+                OutlinedButton(
+                    onClick = { lastSeenEpc?.let { copyText("EPC cuối", it) } },
+                    enabled = !lastSeenEpc.isNullOrBlank(),
+                ) { Text("Copy EPC cuối") }
+            }
+        }
+
+        HardwareCard(title = "Inventory") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = vm::startInventory) { Text("Bắt đầu") }
+                OutlinedButton(onClick = vm::stopInventory) { Text("Dừng") }
+                OutlinedButton(
+                    onClick = { copyText("danh sách EPC", inventoryTags.joinToString("\n")) },
+                    enabled = inventoryTags.isNotEmpty(),
+                ) { Text("Copy EPC") }
+            }
+            HardwareField("Số EPC đã gom", inventoryTags.size.toString())
+            if (inventoryTags.isEmpty()) {
+                Text("Chưa có EPC nào từ inventory.", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    inventoryTags.forEachIndexed { index, epc ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(PaperMist, RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                        ) {
+                            Text(
+                                text = "${index + 1}. $epc",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        Card {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        HardwareCard(title = "Locate") {
+            OutlinedTextField(
+                value = locateEpc,
+                onValueChange = { locateEpc = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("EPC cần tìm") },
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { vm.startLocate(locateEpc) },
+                    enabled = locateEpc.isNotBlank(),
+                ) { Text("Bắt đầu locate") }
+                OutlinedButton(onClick = vm::stopLocate) { Text("Dừng") }
+                OutlinedButton(
+                    onClick = { lastSeenEpc?.let { locateEpc = it } },
+                    enabled = !lastSeenEpc.isNullOrBlank(),
+                ) { Text("Dùng EPC cuối") }
+            }
+            HardwareField("Tín hiệu locate", "$locateSignal / 100")
+        }
+
+        HardwareCard(title = "Ghi EPC") {
+            OutlinedTextField(
+                value = oldEpc,
+                onValueChange = { oldEpc = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("EPC hiện tại") },
+            )
+            OutlinedTextField(
+                value = newEpc,
+                onValueChange = { newEpc = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("EPC mới") },
+            )
+            Button(
+                onClick = { vm.writeEpc(oldEpc, newEpc) },
+                enabled = oldEpc.isNotBlank() && newEpc.isNotBlank(),
             ) {
-                Text("Bảng time trigger", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Rule: dưới 1000ms = Bấm, từ 1000ms trở lên = Giữ",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Text("Bắt đầu", fontWeight = FontWeight.Bold)
-                    Text("Kết thúc", fontWeight = FontWeight.Bold)
-                    Text("Thời gian", fontWeight = FontWeight.Bold)
-                    Text("Loại", fontWeight = FontWeight.Bold)
-                }
+                Text("Ghi EPC")
+            }
+            writeResult?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        }
+
+        HardwareCard(title = "Bảng time trigger") {
+            Text(
+                "Rule: dưới 1000ms = Bấm, từ 1000ms trở lên = Giữ",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (triggerHistory.isEmpty()) {
+                Text("Chưa có lần bóp cò nào được ghi nhận.")
+            } else {
                 triggerHistory.forEach { row ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
+                            .horizontalScroll(rememberScrollState())
+                            .background(PaperMist, RoundedCornerShape(12.dp))
+                            .padding(10.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         Text(formatTimestamp(row.pressedAt))
@@ -162,150 +282,65 @@ fun HardwareTestScreen(vm: HardwareTestViewModel) {
                         Text(row.kindLabel)
                     }
                 }
-                if (triggerHistory.isEmpty()) {
-                    Text("Chưa có lần bóp cò nào được ghi nhận.")
+            }
+        }
+
+        HardwareCard(title = "Raw SDK trigger") {
+            if (rawSdkLogs.isEmpty()) {
+                Text("Chưa có raw callback từ SDK.")
+            } else {
+                rawSdkLogs.forEach { line ->
+                    Text("• $line", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
 
-        Card {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("Raw SDK trigger", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "Dùng bảng này để xem SDK thật sự báo DOWN hay UP khi anh bóp/thả cò.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                if (rawSdkLogs.isEmpty()) {
-                    Text("Chưa có raw callback từ SDK.")
-                } else {
-                    rawSdkLogs.forEach { line ->
-                        Text("• $line")
-                    }
+        HardwareCard(title = "Nhật ký sự kiện") {
+            if (logs.isEmpty()) {
+                Text("Chưa có log.")
+            } else {
+                logs.forEach { line ->
+                    Text("• $line", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
+    }
+}
 
-        Card {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("1. Pin và quét đơn", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = vm::refreshBattery) { Text("Đọc pin") }
-                    Button(onClick = vm::scanSingle) { Text("Quét 1 thẻ") }
-                }
-                Text("Pin: ${battery?.let { "$it%" } ?: "Chưa đọc"}")
-                Text("EPC đơn: ${singleScan ?: "Chưa có"}")
-            }
-        }
+@Composable
+private fun HardwareCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, Ash),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = {
+                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                content()
+            },
+        )
+    }
+}
 
-        Card {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("2. Inventory", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = vm::startInventory) { Text("Bắt đầu inventory") }
-                    Button(onClick = vm::stopInventory) { Text("Dừng inventory") }
-                }
-                Text("Số EPC đã gom: ${inventoryTags.size}")
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    inventoryTags.forEach { epc ->
-                        Text("• $epc")
-                    }
-                }
-            }
-        }
-
-        Card {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("3. Locate", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(
-                    value = locateEpc,
-                    onValueChange = { locateEpc = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("EPC cần tìm") },
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { vm.startLocate(locateEpc) },
-                        enabled = locateEpc.isNotBlank(),
-                    ) {
-                        Text("Bắt đầu locate")
-                    }
-                    Button(onClick = vm::stopLocate) { Text("Dừng locate") }
-                }
-                Text("Tín hiệu locate: $locateSignal / 100")
-            }
-        }
-
-        Card {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("4. Ghi EPC", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(
-                    value = oldEpc,
-                    onValueChange = { oldEpc = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("EPC hiện tại") },
-                )
-                OutlinedTextField(
-                    value = newEpc,
-                    onValueChange = { newEpc = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("EPC mới") },
-                )
-                Button(
-                    onClick = { vm.writeEpc(oldEpc, newEpc) },
-                    enabled = oldEpc.isNotBlank() && newEpc.isNotBlank(),
-                ) {
-                    Text("Ghi EPC")
-                }
-                writeResult?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-            }
-        }
-
-        Card {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text("Nhật ký sự kiện", style = MaterialTheme.typography.titleMedium)
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    logs.forEach { line ->
-                        Text("• $line")
-                    }
-                }
-            }
-        }
+@Composable
+private fun HardwareField(label: String, value: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(PaperMist, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

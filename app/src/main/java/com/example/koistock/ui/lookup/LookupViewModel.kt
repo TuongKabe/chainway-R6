@@ -18,6 +18,7 @@ sealed interface LookupResult {
     data class Found(val product: Product, val tag: TagMapping) : LookupResult
     data class UnknownTag(val epc: String) : LookupResult
     data object NotFound : LookupResult
+    data class Error(val message: String) : LookupResult
 }
 
 class LookupViewModel(
@@ -43,24 +44,28 @@ class LookupViewModel(
 
     fun scanOnce() {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            val scanned = reader.scanSingle()
-            if (scanned == null) {
-                mutableResult.value = LookupResult.NotFound
-                return@launch
-            }
+            try {
+                val scanned = reader.scanSingle()
+                if (scanned == null) {
+                    mutableResult.value = LookupResult.NotFound
+                    return@launch
+                }
 
-            val mapping = tagRepo.getByEpc(scanned.epc)
-            if (mapping == null) {
-                mutableResult.value = LookupResult.UnknownTag(scanned.epc)
-                return@launch
-            }
+                val mapping = tagRepo.getByEpc(scanned.epc)
+                if (mapping == null) {
+                    mutableResult.value = LookupResult.UnknownTag(scanned.epc)
+                    return@launch
+                }
 
-            val product = productRepo.getBySku(mapping.sku)
-            mutableResult.value = if (product != null) {
-                reader.beep()
-                LookupResult.Found(product, mapping)
-            } else {
-                LookupResult.UnknownTag(scanned.epc)
+                val product = productRepo.getBySku(mapping.sku)
+                mutableResult.value = if (product != null) {
+                    reader.beep()
+                    LookupResult.Found(product, mapping)
+                } else {
+                    LookupResult.Error("Tag đã map SKU ${mapping.sku} nhưng chưa lấy được dữ liệu sản phẩm từ backend.")
+                }
+            } catch (t: Throwable) {
+                mutableResult.value = LookupResult.Error(t.message ?: "Tra cứu thất bại. Kiểm tra mạng hoặc backend.")
             }
         }
     }
