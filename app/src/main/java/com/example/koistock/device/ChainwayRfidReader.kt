@@ -81,13 +81,10 @@ class ChainwayRfidReader(
         mutableConnectionState.value = ConnectionState.Scanning
         sdk.startScanBTDevices(
             ScanBTCallback { device, rssi, _ ->
-                trySend(
-                    BleDeviceInfo(
-                        name = device?.name ?: "Chainway R6",
-                        mac = device?.address.orEmpty(),
-                        rssi = rssi,
-                    ),
-                )
+                val name = device?.name?.trim().orEmpty()
+                val mac = device?.address?.trim().orEmpty()
+                if (!looksLikeChainwayReader(name, mac)) return@ScanBTCallback
+                trySend(BleDeviceInfo(name = name, mac = mac, rssi = rssi))
             },
         )
         awaitClose {
@@ -169,5 +166,17 @@ class ChainwayRfidReader(
         val epcValue = epc?.takeIf { it.isNotBlank() } ?: return null
         val parsedRssi = rssi?.toIntOrNull() ?: -60
         return ScannedTag(epcValue, parsedRssi)
+    }
+
+    private fun looksLikeChainwayReader(
+        name: String,
+        mac: String,
+    ): Boolean {
+        if (name.isBlank() || mac.isBlank()) return false
+        val normalized = name.uppercase()
+        return normalized == "UR-C88E" ||
+            normalized.startsWith("UR-C88E") ||
+            normalized.contains("C88E") ||
+            normalized.contains("CHAINWAY")
     }
 }

@@ -31,7 +31,20 @@ class ConnectionViewModel(
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.startDeviceScan().collect { device ->
                 mutableDevices.update { current ->
-                    if (current.any { it.mac == device.mac }) current else current + device
+                    current
+                        .indexOfFirst {
+                            it.mac == device.mac ||
+                                it.name.equals(device.name, ignoreCase = true)
+                        }
+                        .let { existingIndex ->
+                            when {
+                                existingIndex < 0 -> current + device
+                                device.rssi > current[existingIndex].rssi -> current.toMutableList().apply {
+                                    this[existingIndex] = device
+                                }
+                                else -> current
+                            }
+                        }
                 }
             }
         }

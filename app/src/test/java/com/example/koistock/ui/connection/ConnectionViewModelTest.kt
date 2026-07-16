@@ -1,6 +1,7 @@
 package com.example.koistock.ui.connection
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.example.koistock.device.BleDeviceInfo
 import com.example.koistock.device.ConnectionState
 import com.example.koistock.device.DevicePrefs
 import com.example.koistock.device.FakeRfidReader
@@ -47,6 +48,23 @@ class ConnectionViewModelTest {
 
         assertEquals(1, vm.devices.value.size)
         assertEquals("AA:BB:CC:DD:EE:FF", vm.devices.value.first().mac)
+    }
+
+    @Test
+    fun scan_dedupesSameNameKeepingStrongerRssi() = runTest {
+        val reader = FakeRfidReader().apply {
+            scanDevices.clear()
+            scanDevices.add(BleDeviceInfo("UR-C88E", "AA:AA:AA:AA:AA:01", -70))
+            scanDevices.add(BleDeviceInfo("UR-C88E", "BB:BB:BB:BB:BB:02", -40))
+        }
+        val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)
+
+        vm.scan()
+        advanceUntilIdle()
+
+        assertEquals(1, vm.devices.value.size)
+        assertEquals("BB:BB:BB:BB:BB:02", vm.devices.value.first().mac)
+        assertEquals(-40, vm.devices.value.first().rssi)
     }
 
     @Test
