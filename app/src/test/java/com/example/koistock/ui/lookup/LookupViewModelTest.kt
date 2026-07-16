@@ -9,6 +9,7 @@ import com.example.koistock.fakes.FakeProductRepo
 import com.example.koistock.fakes.FakeTagRepo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -32,13 +33,14 @@ class LookupViewModelTest {
             ),
         )
 
-        val vm = LookupViewModel(reader, tags, products, backgroundScope)
+        val vm = LookupViewModel(reader, tags, products, this)
         vm.scanOnce()
         advanceUntilIdle()
 
         val result = vm.result.value
         assertTrue(result is LookupResult.Found)
         assertEquals("Ca KOI", (result as LookupResult.Found).product.name)
+        vm.clear()
     }
 
     @Test
@@ -46,22 +48,51 @@ class LookupViewModelTest {
         val reader = FakeRfidReader().apply {
             scannedSingle = ScannedTag("E2000999", -40)
         }
-        val vm = LookupViewModel(reader, FakeTagRepo(), FakeProductRepo(), backgroundScope)
+        val vm = LookupViewModel(reader, FakeTagRepo(), FakeProductRepo(), this)
 
         vm.scanOnce()
         advanceUntilIdle()
 
         assertTrue(vm.result.value is LookupResult.UnknownTag)
+        vm.clear()
     }
 
     @Test
     fun scan_noTag_returnsNotFound() = runTest {
         val reader = FakeRfidReader().apply { scannedSingle = null }
-        val vm = LookupViewModel(reader, FakeTagRepo(), FakeProductRepo(), backgroundScope)
+        val vm = LookupViewModel(reader, FakeTagRepo(), FakeProductRepo(), this)
 
         vm.scanOnce()
         advanceUntilIdle()
 
         assertEquals(LookupResult.NotFound, vm.result.value)
+        vm.clear()
+    }
+
+    @Test
+    fun trigger_click_scansSingleTag() = runTest {
+        val reader = FakeRfidReader().apply {
+            scannedSingle = ScannedTag("KOI-SKU1-1", -40)
+        }
+        val tags = FakeTagRepo(
+            mutableMapOf(
+                "KOI-SKU1-1" to TagMapping("KOI-SKU1-1", "SKU1"),
+            ),
+        )
+        val products = FakeProductRepo(
+            mutableMapOf(
+                "SKU1" to Product("SKU1", "Ca KOI", "con", TrackingMode.SERIALIZED, 3, "A-03"),
+            ),
+        )
+        val vm = LookupViewModel(reader, tags, products, this)
+        runCurrent()
+
+        reader.emitTrigger(true)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertTrue(vm.result.value is LookupResult.Found)
+        assertEquals(1, reader.singleScanCount)
+        vm.clear()
     }
 }

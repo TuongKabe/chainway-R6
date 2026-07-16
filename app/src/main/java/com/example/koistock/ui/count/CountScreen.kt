@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +41,10 @@ fun CountScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var zoneInput by remember(zone) { mutableStateOf(zone.orEmpty()) }
+
+    DisposableEffect(vm) {
+        onDispose { vm.clear() }
+    }
 
     Column(
         modifier = Modifier

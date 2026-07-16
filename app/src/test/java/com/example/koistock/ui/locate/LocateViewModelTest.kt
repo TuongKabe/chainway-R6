@@ -2,7 +2,8 @@ package com.example.koistock.ui.locate
 
 import com.example.koistock.device.FakeRfidReader
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -25,9 +26,9 @@ class LocateViewModelTest {
         val reader = FakeRfidReader()
         val vm = LocateViewModel(reader, this)
         vm.start("KOI-SKU1-1")
-        advanceUntilIdle()
+        runCurrent()
         reader.emitLocate(80)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(80, vm.signal.value)
         assertEquals(BeepCadence.intervalMs(80), vm.intervalMs.value)
         vm.stop()
@@ -38,8 +39,30 @@ class LocateViewModelTest {
         val reader = FakeRfidReader()
         val vm = LocateViewModel(reader, this)
         vm.startForSku("SKU1")
-        advanceUntilIdle()
+        runCurrent()
         assertEquals("KOI-SKU1-", reader.locateTarget)
         vm.stop()
+    }
+
+    @Test
+    fun beep_repeatsFasterWhenSignalIsNear_andStopsAfterStop() = runTest {
+        val reader = FakeRfidReader()
+        val vm = LocateViewModel(reader, this)
+
+        vm.start("KOI-SKU1-1")
+        runCurrent()
+        reader.emitLocate(100)
+        runCurrent()
+
+        advanceTimeBy(250)
+        runCurrent()
+        assertTrue(reader.beepCount >= 2)
+
+        val beforeStop = reader.beepCount
+        vm.stop()
+        advanceTimeBy(500)
+        runCurrent()
+
+        assertEquals(beforeStop, reader.beepCount)
     }
 }

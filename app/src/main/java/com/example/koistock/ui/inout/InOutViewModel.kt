@@ -38,6 +38,22 @@ class InOutViewModel(
     private val epcBySku = mutableMapOf<String, MutableList<String>>()
     private var commandId = newCommandId()
     private var scanJob: Job? = null
+    private var triggerJob: Job? = null
+    private var scanRunning = false
+
+    init {
+        triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            reader.triggerEvents.collect { pressed ->
+                if (pressed) {
+                    if (scanRunning) {
+                        stopScan()
+                    } else {
+                        startScan()
+                    }
+                }
+            }
+        }
+    }
 
     fun setMode(mode: InOutMode) {
         mutableMode.value = mode
@@ -49,6 +65,7 @@ class InOutViewModel(
         mutablePending.value = emptyMap()
         mutableCommitState.value = null
         reader.startInventory()
+        scanRunning = true
         scanJob?.cancel()
         scanJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.inventory.collect { scanned ->
@@ -64,6 +81,12 @@ class InOutViewModel(
 
     fun stopScan() {
         reader.stopInventory()
+        scanJob?.cancel()
+        scanRunning = false
+    }
+
+    fun clear() {
+        triggerJob?.cancel()
         scanJob?.cancel()
     }
 

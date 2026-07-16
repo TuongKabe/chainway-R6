@@ -9,8 +9,10 @@ import com.example.koistock.device.FakeRfidReader
 import com.example.koistock.fakes.FakeTagRepo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -98,6 +100,33 @@ class InOutViewModelTest {
 
         assertEquals(2, vm.pending.value["S1"])
         vm.stopScan()
+    }
+
+    @Test
+    fun trigger_toggle_startsAndStopsInventory() = runTest {
+        val reader = FakeRfidReader()
+        val vm = InOutViewModel(
+            reader = reader,
+            tagRepo = FakeTagRepo(),
+            stockCommandRepo = FakeStockCommandRepo(),
+            deviceId = "dev-1",
+            newCommandId = { "7" },
+            scope = this,
+        )
+        runCurrent()
+
+        reader.emitTrigger(true)
+        runCurrent()
+        advanceUntilIdle()
+        assertTrue(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStartCount)
+
+        reader.emitTrigger(true)
+        runCurrent()
+        advanceUntilIdle()
+        assertFalse(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStopCount)
+        vm.clear()
     }
 }
 

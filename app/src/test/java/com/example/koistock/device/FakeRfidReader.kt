@@ -22,12 +22,19 @@ class FakeRfidReader : RfidReader {
     private val triggerFlow = MutableSharedFlow<Boolean>(extraBufferCapacity = 16)
     override val triggerEvents: SharedFlow<Boolean> = triggerFlow.asSharedFlow()
 
+    private val rawKeyFlow = MutableSharedFlow<String>(extraBufferCapacity = 16)
+    override val rawKeyEvents: SharedFlow<String> = rawKeyFlow.asSharedFlow()
+
     private var connectResult = true
     private var battery = 100
     var scannedSingle: ScannedTag? = null
+    var singleScanCount = 0
     var lastWrittenEpc: Pair<String, String>? = null
     var locateTarget: String? = null
     var inventoryRunning = false
+    var inventoryStartCount = 0
+    var inventoryStopCount = 0
+    var beepCount = 0
 
     val scanDevices = mutableListOf(BleDeviceInfo("R6-TEST", "AA:BB:CC:DD:EE:FF", -50))
 
@@ -53,14 +60,19 @@ class FakeRfidReader : RfidReader {
         state.value = ConnectionState.Disconnected
     }
 
-    override suspend fun scanSingle(): ScannedTag? = scannedSingle
+    override suspend fun scanSingle(): ScannedTag? {
+        singleScanCount += 1
+        return scannedSingle
+    }
 
     override fun startInventory() {
         inventoryRunning = true
+        inventoryStartCount += 1
     }
 
     override fun stopInventory() {
         inventoryRunning = false
+        inventoryStopCount += 1
     }
 
     override suspend fun writeEpc(oldEpc: String, newEpc: String): Boolean {
@@ -78,7 +90,9 @@ class FakeRfidReader : RfidReader {
 
     override suspend fun batteryPercent(): Int = battery
 
-    override fun beep() = Unit
+    override fun beep() {
+        beepCount += 1
+    }
 
     override fun release() = Unit
 
@@ -92,6 +106,10 @@ class FakeRfidReader : RfidReader {
 
     suspend fun emitTrigger(pressed: Boolean) {
         triggerFlow.emit(pressed)
+    }
+
+    suspend fun emitRawKeyEvent(message: String) {
+        rawKeyFlow.emit(message)
     }
 
     fun setConnectResult(value: Boolean) {

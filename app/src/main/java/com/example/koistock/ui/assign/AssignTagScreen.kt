@@ -17,6 +17,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +40,10 @@ fun AssignTagScreen(
     val done by vm.done.collectAsState()
     var structured by remember { mutableStateOf(false) }
     var selectedSku by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(vm) {
+        onDispose { vm.clear() }
+    }
 
     Column(
         modifier = Modifier

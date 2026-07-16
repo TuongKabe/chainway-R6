@@ -7,6 +7,7 @@ import com.example.koistock.data.remote.TagRepo
 import com.example.koistock.device.RfidReader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,18 @@ class LookupViewModel(
 ) {
     private val mutableResult = MutableStateFlow<LookupResult>(LookupResult.Idle)
     val result: StateFlow<LookupResult> = mutableResult.asStateFlow()
+
+    private var triggerJob: Job? = null
+
+    init {
+        triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            reader.triggerEvents.collect { pressed ->
+                if (pressed) {
+                    scanOnce()
+                }
+            }
+        }
+    }
 
     fun scanOnce() {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -50,5 +63,9 @@ class LookupViewModel(
                 LookupResult.UnknownTag(scanned.epc)
             }
         }
+    }
+
+    fun clear() {
+        triggerJob?.cancel()
     }
 }

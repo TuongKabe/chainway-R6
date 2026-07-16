@@ -11,8 +11,10 @@ import com.example.koistock.fakes.FakeTagRepo
 import com.example.koistock.fakes.FakeTransactionRepo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,7 +35,7 @@ class CountViewModelTest {
         val vm = CountViewModel(reader, tags, products, FakeTransactionRepo(), "d", { 0 }, this)
         vm.setZone("A-03")
         vm.startScan()
-        advanceUntilIdle()
+        runCurrent()
 
         reader.emitTag("KOI-S1-1")
         reader.emitTag("KOI-S1-2")
@@ -42,6 +44,7 @@ class CountViewModelTest {
 
         vm.stopScan()
         assertEquals(2, vm.countedBySku.value["S1"])
+        vm.clear()
     }
 
     @Test
@@ -54,13 +57,14 @@ class CountViewModelTest {
         val vm = CountViewModel(reader, tags, products, FakeTransactionRepo(), "d", { 0 }, this)
         vm.setZone("A-03")
         vm.startScan()
-        advanceUntilIdle()
+        runCurrent()
         reader.emitTag("KOI-S1-1")
         advanceUntilIdle()
         vm.stopScan()
 
         vm.reconcile(listOf(ExpectedItem("S1", "Áo", 1, "A-03")))
         assertEquals(CountStatus.MATCH, vm.rows.value.first().status)
+        vm.clear()
     }
 
     @Test
@@ -75,5 +79,37 @@ class CountViewModelTest {
             this,
         )
         assertTrue(vm.csv().contains("khu,kệ,sku"))
+        vm.clear()
+    }
+
+    @Test
+    fun trigger_toggle_startsAndStopsInventory() = runTest {
+        val reader = FakeRfidReader()
+        val vm = CountViewModel(
+            reader,
+            FakeTagRepo(),
+            FakeProductRepo(),
+            FakeTransactionRepo(),
+            "d",
+            { 0 },
+            this,
+        )
+        runCurrent()
+
+        reader.emitTrigger(true)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertTrue(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStartCount)
+
+        reader.emitTrigger(true)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertEquals(1, reader.inventoryStopCount)
+        assertFalse(reader.inventoryRunning)
+        assertEquals(0, reader.singleScanCount)
+        vm.clear()
     }
 }

@@ -40,6 +40,22 @@ class CountViewModel(
 
     private val seenEpcs = mutableSetOf<String>()
     private var scanJob: Job? = null
+    private var triggerJob: Job? = null
+    private var scanRunning = false
+
+    init {
+        triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            reader.triggerEvents.collect { pressed ->
+                if (pressed) {
+                    if (scanRunning) {
+                        stopScan()
+                    } else {
+                        startScan()
+                    }
+                }
+            }
+        }
+    }
 
     fun setZone(code: String) {
         mutableZone.value = code
@@ -49,6 +65,7 @@ class CountViewModel(
         seenEpcs.clear()
         mutableCountedBySku.value = emptyMap()
         reader.startInventory()
+        scanRunning = true
         scanJob?.cancel()
         scanJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.inventory.collect { scanned ->
@@ -65,6 +82,7 @@ class CountViewModel(
     fun stopScan() {
         reader.stopInventory()
         scanJob?.cancel()
+        scanRunning = false
     }
 
     suspend fun reconcile(expected: List<ExpectedItem>) {
@@ -90,4 +108,9 @@ class CountViewModel(
     }
 
     fun csv(): String = CsvExporter.toCsv(rows.value, now())
+
+    fun clear() {
+        triggerJob?.cancel()
+        scanJob?.cancel()
+    }
 }

@@ -11,6 +11,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -24,6 +25,10 @@ fun LookupScreen(
     onAssign: (String) -> Unit,
 ) {
     val result by vm.result.collectAsState()
+
+    DisposableEffect(vm) {
+        onDispose { vm.clear() }
+    }
 
     Column(
         modifier = Modifier

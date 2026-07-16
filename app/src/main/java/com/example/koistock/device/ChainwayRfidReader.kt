@@ -10,6 +10,10 @@ import com.rscja.deviceapi.interfaces.IUHFInventoryCallback
 import com.rscja.deviceapi.interfaces.IUHFLocationCallback
 import com.rscja.deviceapi.interfaces.KeyEventCallback
 import com.rscja.deviceapi.interfaces.ScanBTCallback
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -19,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -39,6 +44,14 @@ class ChainwayRfidReader(
 
     private val triggerFlow = MutableSharedFlow<Boolean>(extraBufferCapacity = 16)
     override val triggerEvents: SharedFlow<Boolean> = triggerFlow.asSharedFlow()
+
+    private val rawKeyFlow = MutableSharedFlow<String>(extraBufferCapacity = 32)
+    override val rawKeyEvents: SharedFlow<String> = rawKeyFlow.asSharedFlow()
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val triggerTracker = TriggerPressTracker(scope) { pressed ->
+        triggerFlow.tryEmit(pressed)
+    }
 
     private var currentMac: String? = null
 
@@ -61,11 +74,13 @@ class ChainwayRfidReader(
 
     private val keyEventCallback = object : KeyEventCallback {
         override fun onKeyDown(keyCode: Int) {
-            triggerFlow.tryEmit(true)
+            rawKeyFlow.tryEmit("SDK DOWN keyCode=$keyCode")
+            triggerTracker.onKeyDown(keyCode)
         }
 
         override fun onKeyUp(keyCode: Int) {
-            triggerFlow.tryEmit(false)
+            rawKeyFlow.tryEmit("SDK UP keyCode=$keyCode")
+            triggerTracker.onKeyUp(keyCode)
         }
     }
 
@@ -156,6 +171,8 @@ class ChainwayRfidReader(
     }
 
     override fun release() {
+        triggerTracker.release()
+        scope.coroutineContext.cancel()
         stopInventory()
         stopLocate()
         disconnect()

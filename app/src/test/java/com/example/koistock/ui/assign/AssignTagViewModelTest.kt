@@ -8,6 +8,7 @@ import com.example.koistock.fakes.FakeProductRepo
 import com.example.koistock.fakes.FakeTagRepo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -51,6 +52,20 @@ class AssignTagViewModelTest {
         assertEquals("E2000ABC", reader.lastWrittenEpc?.first)
         assertTrue(reader.lastWrittenEpc?.second?.startsWith("KOI-SKU1-") == true)
         assertTrue(tags.items.keys.any { it.startsWith("KOI-SKU1-") })
+    }
+
+    @Test
+    fun trigger_click_scansBlankTag() = runTest {
+        val reader = FakeRfidReader().apply { scannedSingle = ScannedTag("E2000TRIGGER", -30) }
+        val vm = AssignTagViewModel(reader, FakeTagRepo(), sampleProducts(), "dev-1", { 100 }, this.backgroundScope)
+        runCurrent()
+
+        reader.emitTrigger(true)
+        runCurrent()
+        advanceUntilIdle()
+
+        assertEquals("E2000TRIGGER", vm.scannedEpc.value)
+        assertEquals(1, reader.singleScanCount)
     }
 
     private fun sampleProducts() = FakeProductRepo(

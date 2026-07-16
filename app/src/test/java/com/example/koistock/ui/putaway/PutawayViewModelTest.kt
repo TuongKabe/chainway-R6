@@ -10,8 +10,10 @@ import com.example.koistock.fakes.FakeTagRepo
 import com.example.koistock.fakes.FakeTransactionRepo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -69,5 +71,25 @@ class PutawayViewModelTest {
         advanceUntilIdle()
         assertEquals(setOf("E1", "E2"), vm.scanned.value)
         vm.stopCollect()
+    }
+
+    @Test
+    fun trigger_toggle_startsAndStopsInventory() = runTest {
+        val reader = FakeRfidReader()
+        val vm = PutawayViewModel(reader, FakeTagRepo(), FakeProductRepo(), FakeTransactionRepo(), "d", { 0 }, this)
+        runCurrent()
+
+        reader.emitTrigger(true)
+        runCurrent()
+        advanceUntilIdle()
+        assertTrue(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStartCount)
+
+        reader.emitTrigger(true)
+        runCurrent()
+        advanceUntilIdle()
+        assertFalse(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStopCount)
+        vm.clear()
     }
 }

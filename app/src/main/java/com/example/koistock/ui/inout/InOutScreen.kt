@@ -11,6 +11,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -27,6 +28,10 @@ fun InOutScreen(vm: InOutViewModel) {
     val pending by vm.pending.collectAsState()
     val commitState by vm.commitState.collectAsState()
     val scope = rememberCoroutineScope()
+
+    DisposableEffect(vm) {
+        onDispose { vm.clear() }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),

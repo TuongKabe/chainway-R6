@@ -13,6 +13,7 @@ interface RfidReader {
     val inventory: SharedFlow<ScannedTag>
     val locateSignal: SharedFlow<Int>
     val triggerEvents: SharedFlow<Boolean>
+    val rawKeyEvents: SharedFlow<String>
 
     fun startDeviceScan(): Flow<BleDeviceInfo>
     suspend fun connect(mac: String): Boolean

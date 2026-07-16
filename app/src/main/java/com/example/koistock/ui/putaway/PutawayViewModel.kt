@@ -33,6 +33,22 @@ class PutawayViewModel(
     val scanned: StateFlow<Set<String>> = mutableScanned.asStateFlow()
 
     private var collectJob: Job? = null
+    private var triggerJob: Job? = null
+    private var collectRunning = false
+
+    init {
+        triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            reader.triggerEvents.collect { pressed ->
+                if (pressed) {
+                    if (collectRunning) {
+                        stopCollect()
+                    } else {
+                        startCollect()
+                    }
+                }
+            }
+        }
+    }
 
     fun setLocationByTag(locationCode: String) {
         mutableLocationCode.value = locationCode
@@ -41,6 +57,7 @@ class PutawayViewModel(
     fun startCollect() {
         mutableScanned.value = emptySet()
         reader.startInventory()
+        collectRunning = true
         collectJob?.cancel()
         collectJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.inventory.collect { tag ->
@@ -51,6 +68,12 @@ class PutawayViewModel(
 
     fun stopCollect() {
         reader.stopInventory()
+        collectJob?.cancel()
+        collectRunning = false
+    }
+
+    fun clear() {
+        triggerJob?.cancel()
         collectJob?.cancel()
     }
 

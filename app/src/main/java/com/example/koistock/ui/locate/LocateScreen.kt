@@ -64,9 +64,9 @@ fun LocateScreen(
                 .height(24.dp),
         )
         Text("Tín hiệu: $signal / 100")
-        Text("Nhịp beep mô phỏng: $interval ms")
+        Text("Nhịp beep theo khoảng cách: $interval ms")
         Text(
-            "Khi nối reader thật, màn này sẽ đổi beep nhanh dần khi lại gần thẻ mục tiêu.",
+            "Reader thật sẽ beep chậm khi còn xa và nhanh dần khi lại gần thẻ mục tiêu.",
             style = MaterialTheme.typography.bodyMedium,
         )
     }

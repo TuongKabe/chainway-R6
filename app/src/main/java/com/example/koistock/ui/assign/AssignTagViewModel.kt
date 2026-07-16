@@ -7,6 +7,7 @@ import com.example.koistock.device.RfidReader
 import com.example.koistock.domain.EpcCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +26,18 @@ class AssignTagViewModel(
 
     private val mutableDone = MutableStateFlow(false)
     val done: StateFlow<Boolean> = mutableDone.asStateFlow()
+
+    private var triggerJob: Job? = null
+
+    init {
+        triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            reader.triggerEvents.collect { pressed ->
+                if (pressed) {
+                    scanBlank()
+                }
+            }
+        }
+    }
 
     fun scanBlank() {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -59,5 +72,9 @@ class AssignTagViewModel(
             reader.beep()
             mutableDone.value = true
         }
+    }
+
+    fun clear() {
+        triggerJob?.cancel()
     }
 }
