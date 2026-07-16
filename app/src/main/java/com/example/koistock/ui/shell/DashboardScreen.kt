@@ -84,7 +84,7 @@ fun DashboardScreen(
                         ConnectionState.Scanning -> "Đang tìm thiết bị"
                         ConnectionState.Disconnected -> "Chưa kết nối"
                     })
-                    StatusRow("Firebase", "Chờ bổ sung google-services.json")
+                    StatusRow("Backend API", "Đã trỏ sang KOI backend trên máy Koi")
                     StatusRow("Chainway reader", "Đã chuyển sang reader thật để kiểm tra trên điện thoại")
                     AssistChip(onClick = {}, label = { Text("Ưu tiên khóa kết nối R6 thật trước") })
                 }
@@ -137,9 +137,9 @@ fun DashboardScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text("Hướng triển khai tiếp theo", style = MaterialTheme.typography.titleMedium)
-                    Text("1. Thêm google-services.json và bật Anonymous Auth / Firestore")
+                    Text("1. Xác nhận app gọi được backend HTTP trên máy Koi")
                     Text("2. Xác nhận kết nối, inventory, locate và write EPC với R6 thật")
-                    Text("3. Mở rộng dữ liệu thật cho từng màn nghiệp vụ")
+                    Text("3. Mở rộng dữ liệu thật cho từng màn nghiệp vụ và sync")
                 }
             }
         }

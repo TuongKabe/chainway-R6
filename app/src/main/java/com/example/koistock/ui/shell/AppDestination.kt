@@ -18,7 +18,7 @@ object AppDestinations {
     val Putaway = AppDestination("putaway", "Đặt vị trí", "Gán vị trí khu kệ")
     val Zones = AppDestination("zones", "Khu vực", "Quản lý khu và kệ")
     val Hardware = AppDestination("hardware", "Test R6", "Kiểm tra scan, locate, write EPC")
-    val Sync = AppDestination("sync", "Đồng bộ kho", "Kích hoạt đồng bộ Firestore và Sheet")
+    val Sync = AppDestination("sync", "Đồng bộ kho", "Kích hoạt đồng bộ PostgreSQL và Sheet")
 
     val menuItems = listOf(
         Lookup,

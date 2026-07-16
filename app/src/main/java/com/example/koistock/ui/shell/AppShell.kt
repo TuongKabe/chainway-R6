@@ -6,6 +6,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -15,20 +16,12 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.koistock.data.model.LocationNode
-import com.example.koistock.data.model.LocationType
-import com.example.koistock.data.model.Product
-import com.example.koistock.data.model.TagMapping
-import com.example.koistock.data.model.Transaction
-import com.example.koistock.data.model.TrackingMode
-import com.example.koistock.data.model.TxType
-import com.example.koistock.data.remote.CommitStockResult
-import com.example.koistock.data.remote.LocationRepo
-import com.example.koistock.data.remote.ProductRepo
-import com.example.koistock.data.remote.StockCommandRepo
-import com.example.koistock.data.remote.StockMovement
-import com.example.koistock.data.remote.TagRepo
-import com.example.koistock.data.remote.TransactionRepo
+import com.example.koistock.data.remote.HttpLocationRepository
+import com.example.koistock.data.remote.HttpProductRepository
+import com.example.koistock.data.remote.HttpStockCommandRepository
+import com.example.koistock.data.remote.HttpTagRepository
+import com.example.koistock.data.remote.HttpTransactionRepository
+import com.example.koistock.data.remote.KoiApiFactory
 import com.example.koistock.device.ConnectionState
 import com.example.koistock.device.RfidReader
 import com.example.koistock.domain.ExpectedItem
@@ -52,8 +45,6 @@ import com.example.koistock.ui.putaway.PutawayScreen
 import com.example.koistock.ui.putaway.PutawayViewModel
 import com.example.koistock.ui.zones.ZoneScreen
 import com.example.koistock.ui.zones.ZoneViewModel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +55,22 @@ fun AppShell(
     val navController = rememberNavController()
     val state by vm.state.collectAsState()
     val batteryPercent by vm.batteryPercent.collectAsState()
+
+    val api = remember { KoiApiFactory.create() }
+    val productRepo = remember { HttpProductRepository(api) }
+    val tagRepo = remember { HttpTagRepository(api) }
+    val txRepo = remember { HttpTransactionRepository(api) }
+    val locationRepo = remember { HttpLocationRepository(api) }
+    val stockCommandRepo = remember { HttpStockCommandRepository(api) }
+    val products by productRepo.observeAll().collectAsState(initial = emptyList())
+    val expectedItems = remember(products) {
+        products.map { ExpectedItem(it.sku, it.name, it.quantity.toInt(), it.locationCode) }
+    }
+
+    LaunchedEffect(Unit) {
+        productRepo.refresh()
+        locationRepo.refresh()
+    }
 
     Scaffold(
         topBar = {
@@ -101,8 +108,6 @@ fun AppShell(
             }
             composable(AppDestinations.Lookup.route) {
                 val lookupScope = rememberCoroutineScope()
-                val tagRepo = remember { DemoTagRepo() }
-                val productRepo = remember { DemoProductRepo() }
                 val lookupVm = remember(vm) {
                     LookupViewModel(
                         reader = reader,
@@ -128,46 +133,28 @@ fun AppShell(
             }
             composable(AppDestinations.Count.route) {
                 val countScope = rememberCoroutineScope()
-                val tagRepo = remember {
-                    DemoTagRepo(
-                        mutableMapOf(
-                            "KOI-SKU1-1" to TagMapping("KOI-SKU1-1", "SKU1", locationCode = "A-03"),
-                            "KOI-SKU1-2" to TagMapping("KOI-SKU1-2", "SKU1", locationCode = "A-03"),
-                            "KOI-SKU2-1" to TagMapping("KOI-SKU2-1", "SKU2", locationCode = "B-01"),
-                        ),
-                    )
-                }
-                val productRepo = remember { DemoProductRepo() }
                 val countVm = remember {
                     CountViewModel(
                         reader = reader,
                         tagRepo = tagRepo,
                         productRepo = productRepo,
-                        txRepo = DemoTransactionRepo(),
-                        deviceId = "demo-device",
-                        now = { 100L },
+                        txRepo = txRepo,
+                        deviceId = "r6-device",
+                        now = { System.currentTimeMillis() },
                         scope = countScope,
                     )
                 }
-                CountScreen(vm = countVm, expectedItems = demoExpectedItems())
+                CountScreen(vm = countVm, expectedItems = expectedItems)
             }
             composable(AppDestinations.InOut.route) {
                 val inOutScope = rememberCoroutineScope()
-                val tagRepo = remember {
-                    DemoTagRepo(
-                        mutableMapOf(
-                            "KOI-SKU2-1" to TagMapping("KOI-SKU2-1", "SKU2", locationCode = "B-01"),
-                            "KOI-SKU2-2" to TagMapping("KOI-SKU2-2", "SKU2", locationCode = "B-01"),
-                        ),
-                    )
-                }
                 val inOutVm = remember {
                     InOutViewModel(
                         reader = reader,
                         tagRepo = tagRepo,
-                        stockCommandRepo = DemoStockCommandRepo(),
-                        deviceId = "demo-device",
-                        newCommandId = { "cmd-demo-1" },
+                        stockCommandRepo = stockCommandRepo,
+                        deviceId = "r6-device",
+                        newCommandId = { "cmd-${System.currentTimeMillis()}" },
                         scope = inOutScope,
                     )
                 }
@@ -177,8 +164,8 @@ fun AppShell(
                 val zoneScope = rememberCoroutineScope()
                 val zoneVm = remember {
                     ZoneViewModel(
-                        locationRepo = DemoLocationRepo(),
-                        now = { 100L },
+                        locationRepo = locationRepo,
+                        now = { System.currentTimeMillis() },
                         scope = zoneScope,
                     )
                 }
@@ -204,37 +191,28 @@ fun AppShell(
             }
             composable(AppDestinations.Assign.route) {
                 val assignScope = rememberCoroutineScope()
-                val tagRepo = remember { DemoTagRepo() }
-                val productRepo = remember { DemoProductRepo() }
                 val assignVm = remember {
                     AssignTagViewModel(
                         reader = reader,
                         tagRepo = tagRepo,
                         productRepo = productRepo,
-                        deviceId = "demo-device",
-                        now = { 100L },
+                        deviceId = "r6-device",
+                        now = { System.currentTimeMillis() },
                         scope = assignScope,
                     )
                 }
-                AssignTagScreen(vm = assignVm, products = demoProducts())
+                AssignTagScreen(vm = assignVm, products = products)
             }
             composable(AppDestinations.Putaway.route) {
                 val putawayScope = rememberCoroutineScope()
-                val tagRepo = remember {
-                    DemoTagRepo(
-                        mutableMapOf(
-                            "KOI-SKU1-1" to TagMapping("KOI-SKU1-1", "SKU1", locationCode = "A-01"),
-                        ),
-                    )
-                }
                 val putawayVm = remember {
                     PutawayViewModel(
                         reader = reader,
                         tagRepo = tagRepo,
-                        productRepo = DemoProductRepo(),
-                        txRepo = DemoTransactionRepo(),
-                        deviceId = "demo-device",
-                        now = { 100L },
+                        productRepo = productRepo,
+                        txRepo = txRepo,
+                        deviceId = "r6-device",
+                        now = { System.currentTimeMillis() },
                         scope = putawayScope,
                     )
                 }
@@ -243,93 +221,15 @@ fun AppShell(
             composable(AppDestinations.Sync.route) {
                 PlaceholderFeatureScreen(
                     title = "Đồng bộ kho",
-                    summary = "Sẽ trigger gateway/Airflow để reconcile Firestore và Google Sheet theo snapshot-first algorithm.",
+                    summary = "Sẽ trigger gateway/Airflow để reconcile PostgreSQL và Google Sheet theo snapshot-first algorithm.",
                     readiness = listOf(
-                        "Đã có route product-level trong app",
-                        "Đã có spec và plan Airflow sync",
-                        "Đã tách hướng bổ sung google-services sau",
+                        "Đã có backend HTTP trên Koi",
+                        "Đã có Airflow sync PostgreSQL ↔ Google Sheet",
+                        "App đang chuyển từ demo/Firestore sang API thật",
                     ),
-                    nextStep = "Thêm gateway client, SyncViewModel và backend Airflow khi credential sẵn sàng theo Plan 4.",
+                    nextStep = "Thêm gateway client và SyncViewModel để trigger/reconcile theo backend mới.",
                 )
             }
         }
     }
-}
-
-private fun demoExpectedItems(): List<ExpectedItem> = listOf(
-    ExpectedItem("SKU1", "Cá KOI Showa", 2, "A-03"),
-    ExpectedItem("SKU2", "Cá KOI Sanke", 1, "B-01"),
-)
-
-private fun demoProducts(): List<Product> = listOf(
-    Product(
-        sku = "SKU1",
-        name = "Cá KOI Showa",
-        unit = "con",
-        trackingMode = TrackingMode.SERIALIZED,
-        quantity = 3,
-        locationCode = "A-03",
-    ),
-    Product(
-        sku = "SKU2",
-        name = "Cá KOI Sanke",
-        unit = "con",
-        trackingMode = TrackingMode.BULK,
-        quantity = 5,
-        locationCode = "B-01",
-    ),
-)
-
-private class DemoProductRepo : ProductRepo {
-    private val items = demoProducts().associateBy { it.sku }
-
-    override suspend fun getBySku(sku: String): Product? = items[sku]
-
-    override fun observeAll(): Flow<List<Product>> = MutableStateFlow(items.values.toList())
-
-    override suspend fun upsert(product: Product) = Unit
-}
-
-private class DemoTagRepo(
-    private val items: MutableMap<String, TagMapping> = mutableMapOf(
-        "KOI-SKU1-1" to TagMapping("KOI-SKU1-1", "SKU1", locationCode = "A-03"),
-    ),
-) : TagRepo {
-    override suspend fun getByEpc(epc: String): TagMapping? = items[epc]
-
-    override suspend fun upsert(tag: TagMapping) {
-        items[tag.epc] = tag
-    }
-
-    override suspend fun listBySku(sku: String): List<TagMapping> {
-        return items.values.filter { it.sku == sku }
-    }
-}
-
-private class DemoTransactionRepo : TransactionRepo {
-    override suspend fun append(transaction: Transaction) = Unit
-}
-
-private class DemoLocationRepo : LocationRepo {
-    private val flow = MutableStateFlow(
-        listOf(
-            LocationNode("A", "Khu A", LocationType.ZONE),
-            LocationNode("A-03", "Kệ 03", LocationType.SHELF, parent = "A"),
-        ),
-    )
-
-    override fun observeAll(): Flow<List<LocationNode>> = flow
-
-    override suspend fun upsert(location: LocationNode) {
-        flow.value = flow.value.filterNot { it.code == location.code } + location
-    }
-}
-
-private class DemoStockCommandRepo : StockCommandRepo {
-    override suspend fun commit(
-        commandId: String,
-        type: TxType,
-        deviceId: String,
-        movements: List<StockMovement>,
-    ): CommitStockResult = CommitStockResult.Success(commandId)
 }
