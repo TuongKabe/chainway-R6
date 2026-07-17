@@ -38,6 +38,7 @@ class PutawayViewModelTest {
         assertEquals(1, count)
         assertEquals("A-03", tags.items["KOI-S1-1"]!!.locationCode)
         assertTrue(tx.appended.isEmpty())
+        vm.clear()
     }
 
     @Test
@@ -57,6 +58,7 @@ class PutawayViewModelTest {
         assertEquals(1, tx.appended.size)
         assertEquals(TxType.MOVE, tx.appended.first().type)
         assertEquals("A-03", tx.appended.first().locationCode)
+        vm.clear()
     }
 
     @Test
@@ -71,12 +73,35 @@ class PutawayViewModelTest {
         advanceUntilIdle()
         assertEquals(setOf("E1", "E2"), vm.scanned.value)
         vm.stopCollect()
+        vm.clear()
     }
 
     @Test
-    fun trigger_toggle_startsAndStopsInventory() = runTest {
+    fun trigger_single_doesOneBurstThenStops() = runTest {
         val reader = FakeRfidReader()
         val vm = PutawayViewModel(reader, FakeTagRepo(), FakeProductRepo(), FakeTransactionRepo(), "d", { 0 }, this)
+        runCurrent()
+
+        reader.emitTrigger(true)
+        runCurrent()
+        assertTrue(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStartCount)
+
+        advanceUntilIdle()
+        assertFalse(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStopCount)
+        vm.clear()
+    }
+
+    @Test
+    fun trigger_continuous_pressStartsPressStops() = runTest {
+        val reader = FakeRfidReader()
+        val vm = PutawayViewModel(
+            reader, FakeTagRepo(), FakeProductRepo(), FakeTransactionRepo(), "d", { 0 }, this,
+            profile = com.example.koistock.device.ScanProfile(
+                triggerMode = com.example.koistock.device.TriggerMode.CONTINUOUS,
+            ),
+        )
         runCurrent()
 
         reader.emitTrigger(true)

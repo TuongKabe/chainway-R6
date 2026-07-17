@@ -48,4 +48,9 @@ object AppDestinations {
         Dashboard, Settings, Pairing, Guide, Hardware,
         Lookup, Locate, InOut, Count, Assign, Putaway, Zones,
     ).associate { it.route to it.title }
+
+    const val ScanConfigArg = "function"
+    const val ScanConfigRoutePattern = "scanconfig/{$ScanConfigArg}"
+
+    fun scanConfigRoute(function: com.example.koistock.device.ScanFunction) = "scanconfig/${function.key}"
 }

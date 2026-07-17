@@ -6,9 +6,12 @@ import com.example.koistock.data.remote.StockCommandRepo
 import com.example.koistock.data.remote.StockMovement
 import com.example.koistock.data.remote.TagRepo
 import com.example.koistock.device.RfidReader
+import com.example.koistock.device.ScanProfile
+import com.example.koistock.device.TriggerMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +27,7 @@ class InOutViewModel(
     private val deviceId: String,
     private val newCommandId: () -> String,
     private val scope: CoroutineScope,
+    private val profile: ScanProfile = ScanProfile(),
 ) {
     private val mutableMode = MutableStateFlow(InOutMode.IN)
     val mode: StateFlow<InOutMode> = mutableMode.asStateFlow()
@@ -44,16 +48,25 @@ class InOutViewModel(
     private var triggerJob: Job? = null
 
     init {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { reader.applyScanConfig(profile) }
         triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.triggerEvents.collect { pressed ->
-                if (pressed) {
-                    if (mutableScanning.value) {
-                        stopScan()
-                    } else {
-                        startScan()
-                    }
+                if (!pressed) return@collect
+                when (profile.triggerMode) {
+                    // Bóp 1 lần: một đợt quét ngắn rồi tự dừng.
+                    TriggerMode.SINGLE -> if (mutableScanning.value) stopScan() else burstOnce()
+                    // Liên tục: bóp lần 1 bắt đầu, bóp lần 2 kết thúc.
+                    TriggerMode.CONTINUOUS -> if (mutableScanning.value) stopScan() else startScan()
                 }
             }
+        }
+    }
+
+    private fun burstOnce() {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            startScan()
+            delay(SINGLE_BURST_MS)
+            stopScan()
         }
     }
 
@@ -106,5 +119,9 @@ class InOutViewModel(
             seenEpcs.clear()
             commandId = newCommandId()
         }
+    }
+
+    private companion object {
+        const val SINGLE_BURST_MS = 1500L
     }
 }

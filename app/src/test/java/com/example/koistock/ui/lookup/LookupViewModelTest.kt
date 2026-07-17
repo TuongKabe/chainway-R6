@@ -70,7 +70,7 @@ class LookupViewModelTest {
     }
 
     @Test
-    fun trigger_click_scansSingleTag() = runTest {
+    fun trigger_click_scansBurstTag() = runTest {
         val reader = FakeRfidReader().apply {
             scannedSingle = ScannedTag("KOI-SKU1-1", -40)
         }
@@ -92,7 +92,7 @@ class LookupViewModelTest {
         advanceUntilIdle()
 
         assertTrue(vm.result.value is LookupResult.Found)
-        assertEquals(1, reader.singleScanCount)
+        assertEquals(1, reader.burstScanCount)
         vm.clear()
     }
 }

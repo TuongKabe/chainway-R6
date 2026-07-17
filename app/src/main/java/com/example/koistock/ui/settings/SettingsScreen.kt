@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.koistock.device.ConnectionState
+import com.example.koistock.device.ScanFunction
 import com.example.koistock.ui.shell.AppDestinations
 
 @Composable
@@ -50,11 +52,7 @@ fun SettingsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            "Thiết bị",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+        SectionTitle("Thiết bị")
         SettingsRow(
             icon = Icons.Filled.Bluetooth,
             title = "Kết nối R6",
@@ -74,12 +72,22 @@ fun SettingsScreen(
             onClick = { onOpen(AppDestinations.Guide.route) },
         )
 
+        SectionTitle("Cấu hình quét theo chức năng")
         Text(
-            "Hệ thống",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 8.dp),
+            "Chỉnh chế độ cò (bóp 1 lần / nhấn giữ) và thông số Chainway riêng cho từng chức năng.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        ScanFunction.entries.forEach { fn ->
+            SettingsRow(
+                icon = Icons.Filled.Tune,
+                title = fn.label,
+                subtitle = "Chế độ cò + công suất, session, Q, Miller…",
+                onClick = { onOpen(AppDestinations.scanConfigRoute(fn)) },
+            )
+        }
+
+        SectionTitle("Hệ thống")
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -94,6 +102,16 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = 4.dp),
+    )
 }
 
 @Composable

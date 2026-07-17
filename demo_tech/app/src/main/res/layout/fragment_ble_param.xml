@@ -1,0 +1,669 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".fragment.BleParamFragment">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="10dp">
+
+        <!-- Warning Message -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:background="#FFF3CD"
+            android:padding="12dp"
+            android:text="@string/ble_param_warning_message"
+            android:textColor="#856404"
+            android:textSize="14sp" />
+
+        <!-- Bluetooth Name Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_bluetooth_name"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/et_bluetooth_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:hint="@string/ble_param_name_hint"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_set_bluetooth_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_bluetooth_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Baudrate Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_baudrate"
+                android:textSize="14sp" />
+
+            <Spinner
+                android:id="@+id/spinner_baudrate"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:entries="@array/ble_param_baudrates" />
+
+            <Button
+                android:id="@+id/btn_set_baudrate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_baudrate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- PIN Code Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_pin_code"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/et_pin_code"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:hint="@string/ble_param_pin_hint"
+                android:inputType="number"
+                android:maxLength="6"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_set_pin_code"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_pin_code"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Bluetooth MAC Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_bluetooth_mac"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/et_bluetooth_mac"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_set_bluetooth_mac"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_bluetooth_mac"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Keyboard Type Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_keyboard_type"
+                android:textSize="14sp" />
+
+            <Spinner
+                android:id="@+id/spinner_keyboard_type"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:entries="@array/ble_param_keyboard_types" />
+
+            <Button
+                android:id="@+id/btn_set_keyboard_type"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_keyboard_type"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- HID Keyboard Char Interval Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_hid_interval"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/et_hid_interval"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:hint="@string/ble_param_interval_hint"
+                android:inputType="number"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_set_hid_interval"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_hid_interval"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Post-Connection Time Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_weight="1"
+                android:text="@string/ble_param_post_connection_time"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/et_post_connection_time"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:hint="@string/ble_param_time_hint"
+                android:inputType="number"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_set_post_connection_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_post_connection_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Min Connection Time Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_weight="1"
+                android:text="@string/ble_param_min_connection_time"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/et_min_connection_time"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:hint="@string/ble_param_time_hint"
+                android:inputType="number"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_set_min_connection_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_min_connection_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Max Connection Time Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_weight="1"
+                android:text="@string/ble_param_max_connection_time"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/et_max_connection_time"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:hint="@string/ble_param_time_hint"
+                android:inputType="number"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_set_max_connection_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_max_connection_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Min Send Time Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_weight="1"
+                android:text="@string/ble_param_min_send_time"
+                android:textSize="14sp" />
+
+            <EditText
+                android:id="@+id/et_min_send_time"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:hint="@string/ble_param_time_hint"
+                android:inputType="number"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_set_min_send_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_min_send_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Pair Property Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_pair_property"
+                android:textSize="14sp" />
+
+            <Switch
+                android:id="@+id/switch_pair_property"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.5"
+                android:textOff="@string/ble_param_unbound"
+                android:textOn="@string/ble_param_bound" />
+
+            <Button
+                android:id="@+id/btn_set_pair_property"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_set"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_pair_property"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="60dp"
+                android:text="@string/ble_param_get"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Keyboard Service & Serial Service Switches -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/ble_param_keyboard_service"
+                android:textSize="14sp" />
+
+            <Switch
+                android:id="@+id/switch_keyboard_service"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textOff="@string/ble_param_not_supported"
+                android:textOn="@string/ble_param_supported" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginStart="40dp"
+                android:text="@string/ble_param_serial_service"
+                android:textSize="14sp" />
+
+            <Switch
+                android:id="@+id/switch_serial_service"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="10dp"
+                android:layout_weight="1"
+                android:checked="true"
+                android:textOff="@string/ble_param_not_supported"
+                android:textOn="@string/ble_param_supported" />
+        </LinearLayout>
+
+        <!-- Services Set/Get Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_set_services"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:minWidth="80dp"
+                android:text="@string/ble_param_set_services"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_get_services"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minWidth="80dp"
+                android:text="@string/ble_param_get_services"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Operations Section -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="10dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_remove_bond"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:text="@string/ble_param_remove_bond"
+                android:textColor="@color/red"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/btn_restore_default"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_weight="1"
+                android:text="@string/ble_param_restore_default"
+                android:textColor="@color/red"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Bluetooth Info Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="8dp"
+            android:text="@string/ble_param_bluetooth_info"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_get_bluetooth_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="@string/ble_param_get_info" />
+
+        <!-- Hardware Version -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_hardware_version"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tv_hardware_version"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:text="-"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Firmware Version -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_firmware_version"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tv_firmware_version"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:text="-"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Software Version -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_software_version"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tv_software_version"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:text="-"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Manufacturer -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/ble_param_manufacturer"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/tv_manufacturer"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="2"
+                android:text="-"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

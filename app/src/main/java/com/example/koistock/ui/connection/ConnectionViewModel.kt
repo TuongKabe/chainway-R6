@@ -26,6 +26,9 @@ class ConnectionViewModel(
     private val mutableBatteryPercent = MutableStateFlow<Int?>(null)
     val batteryPercent: StateFlow<Int?> = mutableBatteryPercent.asStateFlow()
 
+    private val mutablePower = MutableStateFlow<Int?>(null)
+    val power: StateFlow<Int?> = mutablePower.asStateFlow()
+
     fun scan() {
         mutableDevices.value = emptyList()
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -54,8 +57,22 @@ class ConnectionViewModel(
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             if (reader.connect(mac)) {
                 mutableBatteryPercent.value = reader.batteryPercent()
+                mutablePower.value = reader.getPower()
                 prefs.saveMac(mac)
             }
+        }
+    }
+
+    fun setPower(value: Int) {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            reader.setPower(value)
+            mutablePower.value = reader.getPower()
+        }
+    }
+
+    fun refreshPower() {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            mutablePower.value = reader.getPower()
         }
     }
 
@@ -69,6 +86,7 @@ class ConnectionViewModel(
         val connected = reader.connect(mac)
         if (connected) {
             mutableBatteryPercent.value = reader.batteryPercent()
+            mutablePower.value = reader.getPower()
             prefs.saveMac(mac)
         }
         return connected

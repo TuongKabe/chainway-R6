@@ -65,6 +65,29 @@ class FakeRfidReader : RfidReader {
         return scannedSingle
     }
 
+    var burstScanCount = 0
+    var lastPower = 30
+    var readProfileApplied = false
+
+    override suspend fun scanBurst(durationMs: Long): ScannedTag? {
+        burstScanCount += 1
+        return scannedSingle
+    }
+
+    override suspend fun setPower(power: Int): Boolean {
+        lastPower = power
+        return true
+    }
+
+    override suspend fun getPower(): Int = lastPower
+
+    var lastAppliedProfile: ScanProfile? = null
+
+    override suspend fun applyScanConfig(profile: ScanProfile) {
+        lastAppliedProfile = profile
+        lastPower = profile.power
+    }
+
     override fun startInventory() {
         inventoryRunning = true
         inventoryStartCount += 1
@@ -86,6 +109,12 @@ class FakeRfidReader : RfidReader {
 
     override fun stopLocate() {
         locateTarget = null
+    }
+
+    var readBeepEnabled = true
+
+    override suspend fun setReadBeep(enabled: Boolean) {
+        readBeepEnabled = enabled
     }
 
     override suspend fun batteryPercent(): Int = battery

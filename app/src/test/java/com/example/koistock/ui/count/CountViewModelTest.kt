@@ -83,7 +83,8 @@ class CountViewModelTest {
     }
 
     @Test
-    fun trigger_toggle_startsAndStopsInventory() = runTest {
+    fun trigger_single_doesOneBurstThenStops() = runTest {
+        // Mặc định COUNT khi không truyền profile = SINGLE (bóp 1 lần = một đợt quét ngắn tự dừng).
         val reader = FakeRfidReader()
         val vm = CountViewModel(
             reader,
@@ -96,20 +97,51 @@ class CountViewModelTest {
         )
         runCurrent()
 
+        // Ngay sau khi bóp: đợt quét bắt đầu.
         reader.emitTrigger(true)
         runCurrent()
-        advanceUntilIdle()
-
         assertTrue(reader.inventoryRunning)
         assertEquals(1, reader.inventoryStartCount)
 
+        // Hết đợt (~1.5s) tự dừng.
+        advanceUntilIdle()
+        assertFalse(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStopCount)
+        vm.clear()
+    }
+
+    @Test
+    fun trigger_continuous_pressStartsPressStops() = runTest {
+        val reader = FakeRfidReader()
+        val vm = CountViewModel(
+            reader,
+            FakeTagRepo(),
+            FakeProductRepo(),
+            FakeTransactionRepo(),
+            "d",
+            { 0 },
+            this,
+            profile = com.example.koistock.device.ScanProfile(
+                triggerMode = com.example.koistock.device.TriggerMode.CONTINUOUS,
+            ),
+        )
+        runCurrent()
+
+        // Bóp lần 1 -> bắt đầu quét (bỏ qua sự kiện thả).
+        reader.emitTrigger(true)
+        runCurrent()
+        reader.emitTrigger(false)
+        runCurrent()
+        advanceUntilIdle()
+        assertTrue(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStartCount)
+
+        // Bóp lần 2 -> kết thúc.
         reader.emitTrigger(true)
         runCurrent()
         advanceUntilIdle()
-
-        assertEquals(1, reader.inventoryStopCount)
         assertFalse(reader.inventoryRunning)
-        assertEquals(0, reader.singleScanCount)
+        assertEquals(1, reader.inventoryStopCount)
         vm.clear()
     }
 }

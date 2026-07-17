@@ -25,7 +25,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 class ChainwayRfidReader(
     context: Context,
@@ -122,6 +124,8 @@ class ChainwayRfidReader(
                 when (status) {
                     ConnectionStatus.CONNECTED -> {
                         mutableConnectionState.value = ConnectionState.Connected(mac)
+                        // Áp cấu hình mặc định ngay khi kết nối; mỗi màn sẽ áp profile riêng khi mở.
+                        scope.launch { applyScanConfig(ScanProfile()) }
                         if (cont.isActive) cont.resume(true)
                     }
 
@@ -153,6 +157,44 @@ class ChainwayRfidReader(
     override suspend fun scanSingle(): ScannedTag? =
         runCatching { sdk.inventorySingleTag()?.toScannedTag() }.getOrNull()
 
+    override suspend fun scanBurst(durationMs: Long): ScannedTag? {
+        val bestRssiByEpc = HashMap<String, Int>()
+        runCatching {
+            sdk.setInventoryCallback(inventoryCallback)
+            sdk.startInventoryTag()
+            withTimeoutOrNull(durationMs) {
+                inventoryFlow.collect { tag ->
+                    val prev = bestRssiByEpc[tag.epc]
+                    if (prev == null || tag.rssi > prev) bestRssiByEpc[tag.epc] = tag.rssi
+                }
+            }
+        }
+        runCatching { sdk.stopInventory() }
+        return bestRssiByEpc.maxByOrNull { it.value }?.let { ScannedTag(it.key, it.value) }
+    }
+
+    override suspend fun setPower(power: Int): Boolean =
+        runCatching { sdk.setPower(power.coerceIn(1, 30)) }.getOrDefault(false)
+
+    override suspend fun getPower(): Int =
+        runCatching { sdk.power }.getOrDefault(0)
+
+    override suspend fun applyScanConfig(profile: ScanProfile) {
+        val p = profile.sanitized()
+        runCatching {
+            sdk.setEPCMode()
+            sdk.setPower(p.power)
+            val gen2 = sdk.gen2 ?: com.rscja.deviceapi.entity.Gen2Entity()
+            gen2.querySession = p.session
+            gen2.queryTarget = 0        // Target A
+            gen2.startQ = p.q
+            gen2.queryM = p.millerM     // Miller: 0=FM0,1=M2,2=M4,3=M8
+            sdk.setGen2(gen2)
+            sdk.setTagFocus(p.tagFocus)
+            sdk.setFastID(p.fastId)
+        }
+    }
+
     override fun startInventory() {
         runCatching {
             sdk.setInventoryCallback(inventoryCallback)
@@ -180,7 +222,9 @@ class ChainwayRfidReader(
         runCatching { sdk.battery.coerceIn(0, 100) }.getOrDefault(0)
 
     override fun beep() {
-        runCatching { sdk.triggerBeep(1) }
+        // triggerBeep là lệnh BLE chặn luồng; chạy nền để không nghẽn Main
+        // (nếu gọi trong vòng lặp beep của định vị sẽ làm treo collector/cò).
+        scope.launch { runCatching { sdk.triggerBeep(1) } }
     }
 
     override fun release() {
@@ -194,8 +238,33 @@ class ChainwayRfidReader(
 
     private fun UHFTAGInfo.toScannedTag(): ScannedTag? {
         val epcValue = epc?.takeIf { it.isNotBlank() } ?: return null
-        val parsedRssi = rssi?.toIntOrNull() ?: -60
-        return ScannedTag(epcValue, parsedRssi)
+        val raw = rssi
+        return ScannedTag(epcValue, parseRssi(raw), raw)
+    }
+
+    /**
+     * RSSI của Chainway trả về dạng String, có thể là: thập phân ("-62.5"), số nguyên,
+     * giá trị dương (đơn vị khác), hoặc hex (vd "C5" ~ two's complement 8-bit). Thử lần lượt.
+     */
+    private fun parseRssi(raw: String?): Int {
+        val s = raw?.trim().orEmpty()
+        if (s.isEmpty()) return DEFAULT_RSSI
+        // 1) Số thập phân/nguyên.
+        s.toDoubleOrNull()?.let { v ->
+            val dbm = if (v > 0) -v else v
+            return dbm.roundToInt().coerceIn(-100, 0)
+        }
+        // 2) Hex byte (two's complement) -> dBm.
+        s.toIntOrNull(16)?.let { hex ->
+            val signed = if (hex > 127) hex - 256 else hex
+            val dbm = if (signed > 0) -signed else signed
+            return dbm.coerceIn(-100, 0)
+        }
+        return DEFAULT_RSSI
+    }
+
+    override suspend fun setReadBeep(enabled: Boolean) {
+        runCatching { sdk.setBeep(enabled) }
     }
 
     private fun looksLikeChainwayReader(
@@ -208,5 +277,9 @@ class ChainwayRfidReader(
             normalized.startsWith("UR-C88E") ||
             normalized.contains("C88E") ||
             normalized.contains("CHAINWAY")
+    }
+
+    private companion object {
+        const val DEFAULT_RSSI = -70
     }
 }

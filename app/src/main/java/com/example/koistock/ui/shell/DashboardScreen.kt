@@ -155,7 +155,7 @@ private fun ConnectionStatusCard(
                     if (isSyncing) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("Đồng bộ dữ liệu")
+                        Text("Đồng bộ Google Sheet")
                     }
                 }
             }

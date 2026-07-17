@@ -16,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.koistock.device.ChainwayRfidReader
 import com.example.koistock.device.DevicePrefs
 import com.example.koistock.device.RfidReader
+import com.example.koistock.device.ScanProfileStore
 import com.example.koistock.ui.connection.ConnectionViewModel
 import com.example.koistock.ui.shell.AppShell
 import com.example.koistock.ui.theme.KOIStockTheme
@@ -34,6 +35,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val prefs = DevicePrefs(dataStore)
+        val scanProfileStore = ScanProfileStore(dataStore)
         val vm = ConnectionViewModel(reader, prefs, lifecycleScope)
 
         setContent {
@@ -56,7 +58,7 @@ class MainActivity : ComponentActivity() {
             }
 
             KOIStockTheme {
-                AppShell(vm, reader)
+                AppShell(vm, reader, scanProfileStore)
             }
         }
     }

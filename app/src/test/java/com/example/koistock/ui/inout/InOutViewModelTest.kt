@@ -48,6 +48,7 @@ class InOutViewModelTest {
         assertEquals(2, repo.lastMovements.size)
         assertTrue(repo.lastMovements.all { it.delta == -1L })
         assertEquals(TxType.OUT, repo.lastType)
+        vm.clear()
     }
 
     @Test
@@ -73,6 +74,7 @@ class InOutViewModelTest {
 
         assertEquals(1L, repo.lastMovements.first().delta)
         assertEquals(TxType.IN, repo.lastType)
+        vm.clear()
     }
 
     @Test
@@ -100,10 +102,11 @@ class InOutViewModelTest {
 
         assertEquals(2, vm.pending.value["S1"])
         vm.stopScan()
+        vm.clear()
     }
 
     @Test
-    fun trigger_toggle_startsAndStopsInventory() = runTest {
+    fun trigger_single_doesOneBurstThenStops() = runTest {
         val reader = FakeRfidReader()
         val vm = InOutViewModel(
             reader = reader,
@@ -112,6 +115,35 @@ class InOutViewModelTest {
             deviceId = "dev-1",
             newCommandId = { "7" },
             scope = this,
+        )
+        runCurrent()
+
+        // Bóp 1 lần (mặc định) -> một đợt quét bắt đầu.
+        reader.emitTrigger(true)
+        runCurrent()
+        assertTrue(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStartCount)
+
+        // Hết đợt tự dừng.
+        advanceUntilIdle()
+        assertFalse(reader.inventoryRunning)
+        assertEquals(1, reader.inventoryStopCount)
+        vm.clear()
+    }
+
+    @Test
+    fun trigger_continuous_pressStartsPressStops() = runTest {
+        val reader = FakeRfidReader()
+        val vm = InOutViewModel(
+            reader = reader,
+            tagRepo = FakeTagRepo(),
+            stockCommandRepo = FakeStockCommandRepo(),
+            deviceId = "dev-1",
+            newCommandId = { "7" },
+            scope = this,
+            profile = com.example.koistock.device.ScanProfile(
+                triggerMode = com.example.koistock.device.TriggerMode.CONTINUOUS,
+            ),
         )
         runCurrent()
 

@@ -72,6 +72,16 @@ data class CommitResponseDto(
     val note: String? = null,
 )
 
+data class SyncResultDto(
+    val runId: String? = null,
+    val status: String? = null,
+    val message: String? = null,
+    // Dạng snake_case dự phòng nếu backend trả khác quy ước.
+    val run_id: String? = null,
+) {
+    val resolvedRunId: String? get() = runId ?: run_id
+}
+
 interface KoiApiService {
     @GET("api/items")
     suspend fun getItems(): ApiEnvelope<List<ItemDto>>
@@ -102,6 +112,10 @@ interface KoiApiService {
 
     @POST("api/stock-commands/commit")
     suspend fun commitStock(@Body body: CommitRequestDto): ApiEnvelope<CommitResponseDto>
+
+    /** Trigger đồng bộ 2 chiều PostgreSQL ↔ Google Sheet (chạy 2 DAG qua proxy/Airflow). */
+    @POST("api/sync/reconcile")
+    suspend fun syncReconcile(): ApiEnvelope<SyncResultDto>
 }
 
 object KoiApiFactory {
@@ -111,6 +125,9 @@ object KoiApiFactory {
         }
         val client = OkHttpClient.Builder()
             .addInterceptor(logging)
+            .connectTimeout(java.time.Duration.ofSeconds(20))
+            .readTimeout(java.time.Duration.ofSeconds(120))
+            .writeTimeout(java.time.Duration.ofSeconds(30))
             .build()
 
         return Retrofit.Builder()

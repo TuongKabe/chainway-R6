@@ -2,6 +2,7 @@
 
 > Đầu đọc UHF RFID Bluetooth dùng cho app KOIStock. SDK: `RFIDWithUHFBLE` (BLE).
 > Xem thiết kế: [2026-07-15-koistock-warehouse-design.md](../superpowers/specs/2026-07-15-koistock-warehouse-design.md)
+> Cơ chế cò & tinh chỉnh độ chính xác: [chainway-r6-scan-tuning.md](chainway-r6-scan-tuning.md)
 
 ---
 

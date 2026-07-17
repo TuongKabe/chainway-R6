@@ -4,6 +4,8 @@ import com.example.koistock.data.model.TagMapping
 import com.example.koistock.data.remote.ProductRepo
 import com.example.koistock.data.remote.TagRepo
 import com.example.koistock.device.RfidReader
+import com.example.koistock.device.ScanProfile
+import com.example.koistock.device.TriggerMode
 import com.example.koistock.domain.EpcCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -25,6 +27,7 @@ class AssignTagViewModel(
     private val deviceId: String,
     private val now: () -> Long,
     private val scope: CoroutineScope,
+    private val profile: ScanProfile = ScanProfile(),
 ) {
     private val mutableScannedEpc = MutableStateFlow<String?>(null)
     val scannedEpc: StateFlow<String?> = mutableScannedEpc.asStateFlow()
@@ -39,15 +42,41 @@ class AssignTagViewModel(
     val result: StateFlow<AssignResult?> = mutableResult.asStateFlow()
 
     private var triggerJob: Job? = null
+    private var holdJob: Job? = null
+    private var holdActive = false
 
     init {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) { reader.applyScanConfig(profile) }
         triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.triggerEvents.collect { pressed ->
-                if (pressed) {
-                    scanBlank()
+                if (!pressed) return@collect
+                when (profile.triggerMode) {
+                    // Bóp 1 lần: mỗi lần bóp quét 1 thẻ.
+                    TriggerMode.SINGLE -> scanBlank()
+                    // Liên tục: bóp lần 1 bắt đầu, bóp lần 2 kết thúc.
+                    TriggerMode.CONTINUOUS -> if (holdActive) stopHold() else startHold()
                 }
             }
         }
+    }
+
+    private fun startHold() {
+        holdActive = true
+        holdJob?.cancel()
+        holdJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            while (true) {
+                val epc = reader.scanSingle()?.epc
+                if (epc != null) {
+                    mutableScannedEpc.value = epc
+                    mutableDone.value = false
+                }
+            }
+        }
+    }
+
+    private fun stopHold() {
+        holdActive = false
+        holdJob?.cancel()
     }
 
     fun scanBlank() {
@@ -119,5 +148,6 @@ class AssignTagViewModel(
 
     fun clear() {
         triggerJob?.cancel()
+        holdJob?.cancel()
     }
 }

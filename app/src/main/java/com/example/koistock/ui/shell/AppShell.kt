@@ -16,6 +16,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -32,12 +33,19 @@ import androidx.navigation.compose.rememberNavController
 import com.example.koistock.data.remote.HttpLocationRepository
 import com.example.koistock.data.remote.HttpProductRepository
 import com.example.koistock.data.remote.HttpStockCommandRepository
+import com.example.koistock.data.remote.HttpSyncRepository
 import com.example.koistock.data.remote.HttpTagRepository
 import com.example.koistock.data.remote.HttpTransactionRepository
+import com.example.koistock.data.remote.SyncOutcome
 import com.example.koistock.data.remote.KoiApiConfig
 import com.example.koistock.data.remote.KoiApiFactory
 import com.example.koistock.device.RfidReader
+import com.example.koistock.device.ToneBeeper
+import com.example.koistock.device.ScanFunction
+import com.example.koistock.device.ScanProfile
+import com.example.koistock.device.ScanProfileStore
 import com.example.koistock.domain.ExpectedItem
+import com.example.koistock.ui.settings.ScanConfigScreen
 import com.example.koistock.ui.assign.AssignTagScreen
 import com.example.koistock.ui.assign.AssignTagViewModel
 import com.example.koistock.ui.common.BatteryIndicator
@@ -69,6 +77,7 @@ import java.util.Locale
 fun AppShell(
     vm: ConnectionViewModel,
     reader: RfidReader,
+    scanProfileStore: ScanProfileStore,
 ) {
     val navController = rememberNavController()
     val state by vm.state.collectAsState()
@@ -80,6 +89,7 @@ fun AppShell(
     val txRepo = remember { HttpTransactionRepository(api) }
     val locationRepo = remember { HttpLocationRepository(api) }
     val stockCommandRepo = remember { HttpStockCommandRepository(api) }
+    val syncRepo = remember { HttpSyncRepository(api) }
     val products by productRepo.observeAll().collectAsState(initial = emptyList())
     val expectedItems = remember(products) {
         products.map { ExpectedItem(it.sku, it.name, it.quantity.toInt(), it.locationCode) }
@@ -98,24 +108,43 @@ fun AppShell(
         if (isSyncing) return
         isSyncing = true
         shellScope.launch {
-            val ok = runCatching {
+            // 1. Trigger đồng bộ 2 chiều PostgreSQL ↔ Google Sheet trên backend.
+            val outcome = syncRepo.reconcile()
+            // 2. Kéo lại dữ liệu mới nhất về app để phản ánh kết quả reconcile.
+            runCatching {
                 productRepo.refresh()
                 locationRepo.refresh()
-            }.isSuccess
+            }
             if (state is com.example.koistock.device.ConnectionState.Connected) {
                 vm.refreshBattery()
             }
             isSyncing = false
             val now = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-            snackbarHostState.showSnackbar(
-                if (ok) "Đã đồng bộ dữ liệu lúc $now" else "Đồng bộ thất bại, kiểm tra kết nối mạng",
-            )
+            val message = when (outcome) {
+                is SyncOutcome.Success -> {
+                    val runTag = outcome.runId?.take(8)?.let { " (run $it)" } ?: ""
+                    "Đồng bộ 2 chiều Google Sheet xong lúc $now$runTag"
+                }
+                is SyncOutcome.Failure -> "Đồng bộ thất bại: ${outcome.message}"
+            }
+            snackbarHostState.showSnackbar(message)
         }
     }
 
     LaunchedEffect(Unit) {
         productRepo.refresh()
         locationRepo.refresh()
+    }
+
+    // Tự làm mới dữ liệu mỗi khi đầu đọc vừa kết nối.
+    val isReaderConnected = state is com.example.koistock.device.ConnectionState.Connected
+    LaunchedEffect(isReaderConnected) {
+        if (isReaderConnected) {
+            runCatching {
+                productRepo.refresh()
+                locationRepo.refresh()
+            }
+        }
     }
 
     Scaffold(
@@ -176,6 +205,18 @@ fun AppShell(
                     onOpen = navController::navigate,
                 )
             }
+            composable(AppDestinations.ScanConfigRoutePattern) { backStackEntry ->
+                val key = backStackEntry.arguments?.getString(AppDestinations.ScanConfigArg)
+                val function = ScanFunction.entries.firstOrNull { it.key == key } ?: ScanFunction.LOOKUP
+                val profile by scanProfileStore.profile(function)
+                    .collectAsState(initial = ScanProfile.default(function))
+                ScanConfigScreen(
+                    function = function,
+                    profile = profile,
+                    onSave = { shellScope.launch { scanProfileStore.save(function, it) } },
+                    onResetDefault = { shellScope.launch { scanProfileStore.reset(function) } },
+                )
+            }
             composable(AppDestinations.Pairing.route) {
                 PairingScreen(vm = vm) {
                     navController.popBackStack()
@@ -196,12 +237,15 @@ fun AppShell(
             }
             composable(AppDestinations.Lookup.route) {
                 val lookupScope = rememberCoroutineScope()
-                val lookupVm = remember(vm) {
+                val profile by scanProfileStore.profile(ScanFunction.LOOKUP)
+                    .collectAsState(initial = ScanProfile.default(ScanFunction.LOOKUP))
+                val lookupVm = remember(profile) {
                     LookupViewModel(
                         reader = reader,
                         tagRepo = tagRepo,
                         productRepo = productRepo,
                         scope = lookupScope,
+                        profile = profile,
                     )
                 }
                 LookupScreen(
@@ -211,10 +255,19 @@ fun AppShell(
             }
             composable(AppDestinations.Locate.route) {
                 val locateScope = rememberCoroutineScope()
-                val locateVm = remember {
+                val profile by scanProfileStore.profile(ScanFunction.LOCATE)
+                    .collectAsState(initial = ScanProfile.default(ScanFunction.LOCATE))
+                // Tiếng báo phát qua loa điện thoại (buzzer R6 bị tắt khi dò).
+                val beeper = remember { ToneBeeper() }
+                DisposableEffect(beeper) {
+                    onDispose { beeper.release() }
+                }
+                val locateVm = remember(profile) {
                     LocateViewModel(
                         reader = reader,
                         scope = locateScope,
+                        profile = profile,
+                        beeper = beeper,
                     )
                 }
                 LocateScreen(
@@ -227,7 +280,9 @@ fun AppShell(
             }
             composable(AppDestinations.Count.route) {
                 val countScope = rememberCoroutineScope()
-                val countVm = remember {
+                val profile by scanProfileStore.profile(ScanFunction.COUNT)
+                    .collectAsState(initial = ScanProfile.default(ScanFunction.COUNT))
+                val countVm = remember(profile) {
                     CountViewModel(
                         reader = reader,
                         tagRepo = tagRepo,
@@ -236,13 +291,16 @@ fun AppShell(
                         deviceId = "r6-device",
                         now = { System.currentTimeMillis() },
                         scope = countScope,
+                        profile = profile,
                     )
                 }
                 CountScreen(vm = countVm, expectedItems = expectedItems)
             }
             composable(AppDestinations.InOut.route) {
                 val inOutScope = rememberCoroutineScope()
-                val inOutVm = remember {
+                val profile by scanProfileStore.profile(ScanFunction.INOUT)
+                    .collectAsState(initial = ScanProfile.default(ScanFunction.INOUT))
+                val inOutVm = remember(profile) {
                     InOutViewModel(
                         reader = reader,
                         tagRepo = tagRepo,
@@ -250,6 +308,7 @@ fun AppShell(
                         deviceId = "r6-device",
                         newCommandId = { "cmd-${System.currentTimeMillis()}" },
                         scope = inOutScope,
+                        profile = profile,
                     )
                 }
                 InOutScreen(vm = inOutVm)
@@ -267,7 +326,9 @@ fun AppShell(
             }
             composable(AppDestinations.Assign.route) {
                 val assignScope = rememberCoroutineScope()
-                val assignVm = remember {
+                val profile by scanProfileStore.profile(ScanFunction.ASSIGN)
+                    .collectAsState(initial = ScanProfile.default(ScanFunction.ASSIGN))
+                val assignVm = remember(profile) {
                     AssignTagViewModel(
                         reader = reader,
                         tagRepo = tagRepo,
@@ -275,13 +336,16 @@ fun AppShell(
                         deviceId = "r6-device",
                         now = { System.currentTimeMillis() },
                         scope = assignScope,
+                        profile = profile,
                     )
                 }
                 AssignTagScreen(vm = assignVm, products = products)
             }
             composable(AppDestinations.Putaway.route) {
                 val putawayScope = rememberCoroutineScope()
-                val putawayVm = remember {
+                val profile by scanProfileStore.profile(ScanFunction.PUTAWAY)
+                    .collectAsState(initial = ScanProfile.default(ScanFunction.PUTAWAY))
+                val putawayVm = remember(profile) {
                     PutawayViewModel(
                         reader = reader,
                         tagRepo = tagRepo,
@@ -290,6 +354,7 @@ fun AppShell(
                         deviceId = "r6-device",
                         now = { System.currentTimeMillis() },
                         scope = putawayScope,
+                        profile = profile,
                     )
                 }
                 PutawayScreen(vm = putawayVm)

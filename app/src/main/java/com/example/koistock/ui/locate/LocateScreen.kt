@@ -1,9 +1,11 @@
 package com.example.koistock.ui.locate
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,11 +43,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.koistock.data.model.Product
 import com.example.koistock.data.model.TagMapping
 import com.example.koistock.data.remote.TagRepo
+import com.example.koistock.ui.theme.ElectricBlue
+import com.example.koistock.ui.theme.Tangerine
+import com.example.koistock.ui.theme.VividGreen
 
 @Composable
 fun LocateScreen(
@@ -150,6 +156,9 @@ private fun LocatePhase(
     val signal by vm.signal.collectAsState()
     val interval by vm.intervalMs.collectAsState()
     val isLocating by vm.isLocating.collectAsState()
+    val rawReads by vm.rawReads.collectAsState()
+    val lastSeenEpc by vm.lastSeenEpc.collectAsState()
+    val lastRawRssi by vm.lastRawRssi.collectAsState()
 
     var tags by remember(product.sku) { mutableStateOf<List<TagMapping>?>(null) }
     var selectedEpc by rememberSaveable(product.sku) { mutableStateOf<String?>(null) }
@@ -243,39 +252,43 @@ private fun LocatePhase(
                     }
                 }
 
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isLocating) {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        },
-                    ),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                SignalGauge(signal = signal, isLocating = isLocating)
+
+                if (isLocating) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     ) {
-                        Text(
-                            if (isLocating) "Đang dò… đưa đầu đọc quét quanh khu vực" else "Chưa dò. Bấm \"Bắt đầu dò\" rồi rê đầu đọc.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                        )
-                        LinearProgressIndicator(
-                            progress = { signal / 100f },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(20.dp),
-                        )
-                        Text("Tín hiệu: $signal / 100", style = MaterialTheme.typography.titleMedium)
-                        if (isLocating) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
                             Text(
                                 "Nhịp beep: $interval ms — càng gần tag, beep càng nhanh.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            // Chẩn đoán: cho biết reader có đọc thẻ không, và thẻ vừa đọc.
+                            Text(
+                                "Đã đọc: $rawReads lượt" + (lastSeenEpc?.let { " · gần nhất: $it" } ?: "") +
+                                    (lastRawRssi?.let { " · RSSI thô: $it" } ?: ""),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (rawReads == 0) {
+                                Text(
+                                    "Chưa đọc được thẻ nào. Kiểm tra đầu đọc/công suất và đưa lại gần thẻ.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            } else if (signal == 0) {
+                                Text(
+                                    "Đang đọc thẻ nhưng chưa khớp EPC mục tiêu ($selectedEpc). Có thể thẻ chưa gán đúng EPC này.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
                         }
                     }
                 }
@@ -284,6 +297,78 @@ private fun LocatePhase(
                     Text("Đổi sản phẩm")
                 }
             }
+        }
+    }
+}
+
+/**
+ * Màn hình tín hiệu lớn, đổi màu theo cường độ để nhìn từ xa khi đang rê đầu đọc.
+ * Xám = chưa thấy, Xanh dương = còn xa, Cam = đang gần, Xanh lá = rất gần.
+ */
+@Composable
+private fun SignalGauge(signal: Int, isLocating: Boolean) {
+    val target = when {
+        !isLocating -> MaterialTheme.colorScheme.surfaceVariant
+        signal <= 0 -> MaterialTheme.colorScheme.surfaceVariant
+        signal >= 70 -> VividGreen
+        signal >= 40 -> Tangerine
+        else -> ElectricBlue
+    }
+    val background by animateColorAsState(targetValue = target, label = "signalColor")
+    val onColor = if (!isLocating || signal <= 0) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        Color.White
+    }
+    val label = when {
+        !isLocating -> "CHƯA DÒ"
+        signal <= 0 -> "CHƯA THẤY TAG"
+        signal >= 70 -> "RẤT GẦN"
+        signal >= 40 -> "ĐANG GẦN"
+        else -> "CÒN XA"
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(200.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = background),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = "$signal",
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.Bold,
+                color = onColor,
+            )
+            Text(
+                text = "/ 100",
+                style = MaterialTheme.typography.titleMedium,
+                color = onColor,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = onColor,
+            )
+            Spacer(Modifier.height(10.dp))
+            LinearProgressIndicator(
+                progress = { signal / 100f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp),
+                color = onColor,
+                trackColor = onColor.copy(alpha = 0.25f),
+            )
         }
     }
 }

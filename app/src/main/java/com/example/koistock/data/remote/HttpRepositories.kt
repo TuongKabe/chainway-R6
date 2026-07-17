@@ -184,6 +184,34 @@ class HttpLocationRepository(
     }
 }
 
+sealed interface SyncOutcome {
+    data class Success(val runId: String?, val note: String?) : SyncOutcome
+    data class Failure(val message: String) : SyncOutcome
+}
+
+/** Trigger đồng bộ 2 chiều PostgreSQL ↔ Google Sheet qua backend Koi. */
+class HttpSyncRepository(
+    private val api: KoiApiService,
+) {
+    suspend fun reconcile(): SyncOutcome = try {
+        // Không bọc trong runCatching để HttpException/IOException nổi lên đúng nhánh catch.
+        val dto: SyncResultDto? = api.syncReconcile().data
+        val status = dto?.status?.lowercase()
+        if (status != null && status in setOf("failed", "error", "upstream_failed")) {
+            SyncOutcome.Failure(dto.message ?: "Đồng bộ thất bại ($status)")
+        } else {
+            SyncOutcome.Success(dto?.resolvedRunId, dto?.message ?: dto?.status)
+        }
+    } catch (e: HttpException) {
+        val body = e.response()?.errorBody()?.string().orEmpty()
+        SyncOutcome.Failure("Lỗi máy chủ (${e.code()})" + body.take(120).let { if (it.isNotBlank()) ": $it" else "" })
+    } catch (e: IOException) {
+        SyncOutcome.Failure("Không kết nối được backend. Kiểm tra mạng và máy chủ đồng bộ.")
+    } catch (e: Exception) {
+        SyncOutcome.Failure("Lỗi không xác định khi đồng bộ: ${e.message ?: e.javaClass.simpleName}")
+    }
+}
+
 class HttpStockCommandRepository(
     private val api: KoiApiService,
 ) : StockCommandRepo {
