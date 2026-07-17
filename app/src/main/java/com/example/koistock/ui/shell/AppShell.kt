@@ -1,33 +1,46 @@
 package com.example.koistock.ui.shell
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.koistock.data.remote.HttpLocationRepository
 import com.example.koistock.data.remote.HttpProductRepository
 import com.example.koistock.data.remote.HttpStockCommandRepository
 import com.example.koistock.data.remote.HttpTagRepository
 import com.example.koistock.data.remote.HttpTransactionRepository
+import com.example.koistock.data.remote.KoiApiConfig
 import com.example.koistock.data.remote.KoiApiFactory
-import com.example.koistock.device.ConnectionState
 import com.example.koistock.device.RfidReader
 import com.example.koistock.domain.ExpectedItem
 import com.example.koistock.ui.assign.AssignTagScreen
 import com.example.koistock.ui.assign.AssignTagViewModel
-import com.example.koistock.ui.common.PlaceholderFeatureScreen
+import com.example.koistock.ui.common.BatteryIndicator
 import com.example.koistock.ui.connection.ConnectionViewModel
 import com.example.koistock.ui.connection.PairingScreen
 import com.example.koistock.ui.count.CountScreen
@@ -43,8 +56,13 @@ import com.example.koistock.ui.lookup.LookupScreen
 import com.example.koistock.ui.lookup.LookupViewModel
 import com.example.koistock.ui.putaway.PutawayScreen
 import com.example.koistock.ui.putaway.PutawayViewModel
+import com.example.koistock.ui.settings.SettingsScreen
 import com.example.koistock.ui.zones.ZoneScreen
 import com.example.koistock.ui.zones.ZoneViewModel
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,19 +85,71 @@ fun AppShell(
         products.map { ExpectedItem(it.sku, it.name, it.quantity.toInt(), it.locationCode) }
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val shellScope = rememberCoroutineScope()
+    var isSyncing by remember { mutableStateOf(false) }
+
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val isDashboard = currentRoute == null || currentRoute == AppDestinations.Dashboard.route
+    val title = if (isDashboard) "KOIStock" else AppDestinations.titleByRoute[currentRoute] ?: "KOIStock"
+
+    fun runSync() {
+        if (isSyncing) return
+        isSyncing = true
+        shellScope.launch {
+            val ok = runCatching {
+                productRepo.refresh()
+                locationRepo.refresh()
+            }.isSuccess
+            if (state is com.example.koistock.device.ConnectionState.Connected) {
+                vm.refreshBattery()
+            }
+            isSyncing = false
+            val now = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            snackbarHostState.showSnackbar(
+                if (ok) "Đã đồng bộ dữ liệu lúc $now" else "Đồng bộ thất bại, kiểm tra kết nối mạng",
+            )
+        }
+    }
+
     LaunchedEffect(Unit) {
         productRepo.refresh()
         locationRepo.refresh()
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("KOIStock") },
+                title = { Text(title) },
+                navigationIcon = {
+                    if (!isDashboard) {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Quay lại",
+                            )
+                        }
+                    }
+                },
                 actions = {
-                    val label = if (state is ConnectionState.Connected) "● R6" else "○ R6"
-                    val batteryLabel = batteryPercent?.let { " $it%" } ?: ""
-                    Text("$label$batteryLabel", modifier = Modifier.padding(end = 12.dp))
+                    BatteryIndicator(percent = batteryPercent)
+                    if (isDashboard) {
+                        IconButton(onClick = { runSync() }, enabled = !isSyncing) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Icon(Icons.Filled.Sync, contentDescription = "Đồng bộ dữ liệu")
+                            }
+                        }
+                        IconButton(onClick = { navController.navigate(AppDestinations.Settings.route) }) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Cài đặt")
+                        }
+                    }
                 },
             )
         },
@@ -92,19 +162,37 @@ fun AppShell(
             composable(AppDestinations.Dashboard.route) {
                 DashboardScreen(
                     connectionState = state,
+                    batteryPercent = batteryPercent,
+                    isSyncing = isSyncing,
+                    onOpen = navController::navigate,
+                    onSync = { runSync() },
+                    onOpenPairing = { navController.navigate(AppDestinations.Pairing.route) },
+                )
+            }
+            composable(AppDestinations.Settings.route) {
+                SettingsScreen(
+                    connectionState = state,
+                    baseUrl = KoiApiConfig.BASE_URL,
                     onOpen = navController::navigate,
                 )
             }
             composable(AppDestinations.Pairing.route) {
                 PairingScreen(vm = vm) {
-                    navController.navigate(AppDestinations.Dashboard.route)
+                    navController.popBackStack()
                 }
-            }
-            composable("menu") {
-                MainMenuScreen(onOpen = navController::navigate)
             }
             composable(AppDestinations.Guide.route) {
                 ConnectionGuideScreen()
+            }
+            composable(AppDestinations.Hardware.route) {
+                val hardwareScope = rememberCoroutineScope()
+                val hardwareVm = remember {
+                    HardwareTestViewModel(
+                        reader = reader,
+                        scope = hardwareScope,
+                    )
+                }
+                HardwareTestScreen(vm = hardwareVm)
             }
             composable(AppDestinations.Lookup.route) {
                 val lookupScope = rememberCoroutineScope()
@@ -129,7 +217,13 @@ fun AppShell(
                         scope = locateScope,
                     )
                 }
-                LocateScreen(vm = locateVm, sku = "SKU1")
+                LocateScreen(
+                    vm = locateVm,
+                    products = products,
+                    tagRepo = tagRepo,
+                    isConnected = state is com.example.koistock.device.ConnectionState.Connected,
+                    onOpenPairing = { navController.navigate(AppDestinations.Pairing.route) },
+                )
             }
             composable(AppDestinations.Count.route) {
                 val countScope = rememberCoroutineScope()
@@ -171,24 +265,6 @@ fun AppShell(
                 }
                 ZoneScreen(vm = zoneVm)
             }
-            composable(AppDestinations.Hardware.route) {
-                val hardwareScope = rememberCoroutineScope()
-                val hardwareVm = remember {
-                    HardwareTestViewModel(
-                        reader = reader,
-                        scope = hardwareScope,
-                    )
-                }
-                HardwareTestScreen(vm = hardwareVm)
-            }
-            composable("legacy_lookup_placeholder") {
-                PlaceholderFeatureScreen(
-                    title = "Tra cứu hàng hóa",
-                    summary = "Placeholder cũ đã được thay bằng màn hình thật.",
-                    readiness = emptyList(),
-                    nextStep = "Không cần dùng route này nữa.",
-                )
-            }
             composable(AppDestinations.Assign.route) {
                 val assignScope = rememberCoroutineScope()
                 val assignVm = remember {
@@ -217,18 +293,6 @@ fun AppShell(
                     )
                 }
                 PutawayScreen(vm = putawayVm)
-            }
-            composable(AppDestinations.Sync.route) {
-                PlaceholderFeatureScreen(
-                    title = "Đồng bộ kho",
-                    summary = "Sẽ trigger gateway/Airflow để reconcile PostgreSQL và Google Sheet theo snapshot-first algorithm.",
-                    readiness = listOf(
-                        "Đã có backend HTTP trên Koi",
-                        "Đã có Airflow sync PostgreSQL ↔ Google Sheet",
-                        "App đang chuyển từ demo/Firestore sang API thật",
-                    ),
-                    nextStep = "Thêm gateway client và SyncViewModel để trigger/reconcile theo backend mới.",
-                )
             }
         }
     }

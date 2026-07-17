@@ -34,18 +34,20 @@ class InOutViewModel(
     private val mutableCommitState = MutableStateFlow<CommitStockResult?>(null)
     val commitState: StateFlow<CommitStockResult?> = mutableCommitState.asStateFlow()
 
+    private val mutableScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = mutableScanning.asStateFlow()
+
     private val seenEpcs = mutableSetOf<String>()
     private val epcBySku = mutableMapOf<String, MutableList<String>>()
     private var commandId = newCommandId()
     private var scanJob: Job? = null
     private var triggerJob: Job? = null
-    private var scanRunning = false
 
     init {
         triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.triggerEvents.collect { pressed ->
                 if (pressed) {
-                    if (scanRunning) {
+                    if (mutableScanning.value) {
                         stopScan()
                     } else {
                         startScan()
@@ -65,7 +67,7 @@ class InOutViewModel(
         mutablePending.value = emptyMap()
         mutableCommitState.value = null
         reader.startInventory()
-        scanRunning = true
+        mutableScanning.value = true
         scanJob?.cancel()
         scanJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.inventory.collect { scanned ->
@@ -82,7 +84,7 @@ class InOutViewModel(
     fun stopScan() {
         reader.stopInventory()
         scanJob?.cancel()
-        scanRunning = false
+        mutableScanning.value = false
     }
 
     fun clear() {

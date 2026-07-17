@@ -22,36 +22,64 @@ class LocateViewModelTest {
     }
 
     @Test
-    fun signal_updatesFromReader() = runTest {
+    fun rssi_mapsToSignal_closerIsHigher() {
+        assertEquals(0, LocateViewModel.rssiToSignal(-80))
+        assertEquals(100, LocateViewModel.rssiToSignal(-30))
+        assertTrue(LocateViewModel.rssiToSignal(-40) > LocateViewModel.rssiToSignal(-60))
+    }
+
+    @Test
+    fun signal_updatesFromMatchingInventoryTag() = runTest {
         val reader = FakeRfidReader()
-        val vm = LocateViewModel(reader, this)
-        vm.start("KOI-SKU1-1")
+        val vm = LocateViewModel(reader, this.backgroundScope)
+        vm.start("E2000ABC")
         runCurrent()
-        reader.emitLocate(80)
+        reader.emitTag("E2000ABC", -30)
         runCurrent()
-        assertEquals(80, vm.signal.value)
-        assertEquals(BeepCadence.intervalMs(80), vm.intervalMs.value)
+        assertEquals(100, vm.signal.value)
+        assertEquals(BeepCadence.intervalMs(100), vm.intervalMs.value)
         vm.stop()
     }
 
     @Test
-    fun startForSku_usesMaskTarget() = runTest {
+    fun signal_ignoresNonTargetTags() = runTest {
         val reader = FakeRfidReader()
-        val vm = LocateViewModel(reader, this)
-        vm.startForSku("SKU1")
+        val vm = LocateViewModel(reader, this.backgroundScope)
+        vm.start("E2000ABC")
         runCurrent()
-        assertEquals("KOI-SKU1-", reader.locateTarget)
+        reader.emitTag("OTHER", -30)
+        runCurrent()
+        assertEquals(0, vm.signal.value)
         vm.stop()
+    }
+
+    @Test
+    fun trigger_togglesLocatingForArmedTarget() = runTest {
+        val reader = FakeRfidReader()
+        val vm = LocateViewModel(reader, this.backgroundScope)
+        vm.setTarget("E2000ABC")
+        runCurrent()
+
+        reader.emitTrigger(true)
+        runCurrent()
+        assertTrue(vm.isLocating.value)
+        assertEquals(1, reader.inventoryStartCount)
+
+        reader.emitTrigger(true)
+        runCurrent()
+        assertTrue(!vm.isLocating.value)
+        assertEquals(1, reader.inventoryStopCount)
+        vm.clear()
     }
 
     @Test
     fun beep_repeatsFasterWhenSignalIsNear_andStopsAfterStop() = runTest {
         val reader = FakeRfidReader()
-        val vm = LocateViewModel(reader, this)
+        val vm = LocateViewModel(reader, this.backgroundScope)
 
-        vm.start("KOI-SKU1-1")
+        vm.start("E2000ABC")
         runCurrent()
-        reader.emitLocate(100)
+        reader.emitTag("E2000ABC", -30)
         runCurrent()
 
         advanceTimeBy(250)

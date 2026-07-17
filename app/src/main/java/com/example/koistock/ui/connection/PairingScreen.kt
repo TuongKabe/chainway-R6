@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.koistock.device.ConnectionState
-import com.example.koistock.ui.common.FeatureGuideButton
 
 @Composable
 fun PairingScreen(
@@ -42,27 +41,6 @@ fun PairingScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("Kết nối đầu đọc R6", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            FeatureGuideButton(
-                title = "Hướng dẫn kết nối R6",
-                quickSteps = listOf(
-                    "Bật Bluetooth trên điện thoại và đầu đọc R6.",
-                    "Nhấn Tìm thiết bị để quét các đầu đọc BLE xung quanh.",
-                    "Chọn đúng R6 theo tên hoặc địa chỉ MAC.",
-                    "Khi trạng thái chuyển sang Đã kết nối, có thể sang các màn nghiệp vụ.",
-                ),
-                notes = listOf(
-                    "Nếu không thấy R6, hãy kiểm tra máy đã cấp quyền Bluetooth.",
-                    "Đưa điện thoại lại gần R6 khi ghép nối lần đầu.",
-                    "App sẽ lưu MAC gần nhất để tự kết nối lại ở lần sau.",
-                ),
-            )
-        }
-
         Text(
             "Trạng thái: " + when (state) {
                 is ConnectionState.Connected -> "Đã kết nối"

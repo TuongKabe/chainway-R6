@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,11 +25,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.koistock.ui.common.FeatureGuideButton
 import com.example.koistock.ui.theme.Ash
 import com.example.koistock.ui.theme.ElectricBlue
 import com.example.koistock.ui.theme.PaperMist
-import com.example.koistock.ui.theme.SoftMint
 import com.example.koistock.ui.theme.Tangerine
 
 @Composable
@@ -45,6 +45,7 @@ fun LookupScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -57,38 +58,10 @@ fun LookupScreen(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .background(SoftMint, RoundedCornerShape(999.dp))
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    ) {
-                        Text("PRODUCT LOOKUP", style = MaterialTheme.typography.labelMedium, color = ElectricBlue)
-                    }
-                    FeatureGuideButton(
-                        title = "Hướng dẫn tra cứu",
-                        quickSteps = listOf(
-                            "Nhấn Quét thẻ để đọc một EPC.",
-                            "Nếu tag đã map, app sẽ hiện SKU, tồn và vị trí.",
-                            "Nếu tag chưa map, chuyển sang màn Gán tag.",
-                        ),
-                        notes = listOf(
-                            "Ưu tiên test với backend đang online.",
-                            "Màn này đã được bọc lỗi để không crash app khi API lỗi.",
-                        ),
-                    )
-                }
                 Text(
-                    text = "Tra cứu hàng hóa",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = "Quét một thẻ RFID để xem thông tin sản phẩm, tồn kho và vị trí hiện tại theo backend mới trên Koi.",
+                    text = "Quét một thẻ RFID để xem thông tin sản phẩm, tồn kho và vị trí.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
@@ -166,20 +139,6 @@ fun LookupScreen(
                         LookupField("Serial", state.tag.unitSerial ?: "—")
                     }
                 }
-            }
-        }
-
-        Card(
-            colors = CardDefaults.cardColors(containerColor = PaperMist),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text("Gợi ý thao tác", style = MaterialTheme.typography.titleMedium)
-                Text("• Test trước với EPC đã có thật trong backend.", style = MaterialTheme.typography.bodyMedium)
-                Text("• Nếu màn này báo lỗi, chụp nguyên message để em fix tiếp nhanh hơn.", style = MaterialTheme.typography.bodyMedium)
             }
         }
     }

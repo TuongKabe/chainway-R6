@@ -32,15 +32,17 @@ class PutawayViewModel(
     private val mutableScanned = MutableStateFlow<Set<String>>(emptySet())
     val scanned: StateFlow<Set<String>> = mutableScanned.asStateFlow()
 
+    private val mutableScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = mutableScanning.asStateFlow()
+
     private var collectJob: Job? = null
     private var triggerJob: Job? = null
-    private var collectRunning = false
 
     init {
         triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.triggerEvents.collect { pressed ->
                 if (pressed) {
-                    if (collectRunning) {
+                    if (mutableScanning.value) {
                         stopCollect()
                     } else {
                         startCollect()
@@ -57,7 +59,7 @@ class PutawayViewModel(
     fun startCollect() {
         mutableScanned.value = emptySet()
         reader.startInventory()
-        collectRunning = true
+        mutableScanning.value = true
         collectJob?.cancel()
         collectJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             reader.inventory.collect { tag ->
@@ -69,7 +71,7 @@ class PutawayViewModel(
     fun stopCollect() {
         reader.stopInventory()
         collectJob?.cancel()
-        collectRunning = false
+        mutableScanning.value = false
     }
 
     fun clear() {

@@ -26,7 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.koistock.domain.ExpectedItem
-import com.example.koistock.ui.common.FeatureGuideButton
+import com.example.koistock.ui.common.ScanTriggerDialog
 import com.example.koistock.util.shareCsv
 import kotlinx.coroutines.launch
 
@@ -38,12 +38,24 @@ fun CountScreen(
     val zone by vm.zone.collectAsState()
     val counted by vm.countedBySku.collectAsState()
     val rows by vm.rows.collectAsState()
+    val isScanning by vm.isScanning.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var zoneInput by remember(zone) { mutableStateOf(zone.orEmpty()) }
+    var showScanDialog by remember { mutableStateOf(false) }
 
     DisposableEffect(vm) {
         onDispose { vm.clear() }
+    }
+
+    if (showScanDialog) {
+        ScanTriggerDialog(
+            isScanning = isScanning,
+            statusLine = "Đã quét: ${counted.size} SKU / ${counted.values.sum()} tag",
+            onStop = vm::stopScan,
+            onClose = { showScanDialog = false },
+            title = "Quét theo khu",
+        )
     }
 
     Column(
@@ -53,26 +65,10 @@ fun CountScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("Quét theo khu / Kiểm kê", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            FeatureGuideButton(
-                title = "Hướng dẫn kiểm kê",
-                quickSteps = listOf(
-                    "Nhập mã khu hoặc kệ cần kiểm kê.",
-                    "Bấm Bắt đầu quét và di chuyển trong khu vực.",
-                    "Dừng quét rồi bấm Đối chiếu để xem chênh lệch.",
-                    "Nếu ổn, lưu count hoặc xuất CSV.",
-                ),
-                notes = listOf(
-                    "App đang gom EPC duy nhất, quét lặp lại không tăng số lượng.",
-                    "Dữ liệu kỳ vọng hiện đang dùng danh sách mẫu để review luồng.",
-                ),
-            )
-        }
-        Text("Luồng kiểm kê cho review trên điện thoại: chọn khu, quét EPC, đối chiếu và xuất CSV.")
+        Text(
+            "Chọn khu, quét EPC, đối chiếu chênh lệch và xuất CSV.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         OutlinedTextField(
             value = zoneInput,
             onValueChange = {
@@ -83,9 +79,11 @@ fun CountScreen(
             label = { Text("Mã khu/kệ") },
             placeholder = { Text("Ví dụ: A-03") },
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = vm::startScan) { Text("Bắt đầu quét") }
-            Button(onClick = vm::stopScan) { Text("Dừng") }
+        Button(
+            onClick = { showScanDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Bắt đầu quét")
         }
 
         Card {

@@ -36,7 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalClipboardManager
 import com.example.koistock.device.ConnectionState
-import com.example.koistock.ui.common.FeatureGuideButton
 import com.example.koistock.ui.theme.Ash
 import com.example.koistock.ui.theme.ElectricBlue
 import com.example.koistock.ui.theme.PaperMist
@@ -96,39 +95,10 @@ fun HardwareTestScreen(vm: HardwareTestViewModel) {
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .background(SoftMint, RoundedCornerShape(999.dp))
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    ) {
-                        Text("RFID TEST LAB", style = MaterialTheme.typography.labelMedium, color = ElectricBlue)
-                    }
-                    FeatureGuideButton(
-                        title = "Hướng dẫn test phần cứng",
-                        quickSteps = listOf(
-                            "Bật Trigger test only để test cò mà không kích quét.",
-                            "Inventory để gom EPC và copy nhanh cho debug.",
-                            "Dùng Copy EPC để gửi log/test case nhanh hơn.",
-                        ),
-                        notes = listOf(
-                            "Rule hiện tại: dưới 1000ms = Bấm, từ 1000ms trở lên = Giữ.",
-                            "Mục test đã có nút copy các EPC quét được.",
-                        ),
-                    )
-                }
-
                 Text(
-                    "Kiểm tra phần cứng R6",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    "Màn debug này ưu tiên đọc nhanh trạng thái reader, EPC vừa quét và log trigger để anh test ngoài hiện trường.",
+                    "Đọc nhanh trạng thái reader, EPC vừa quét và log trigger để test ngoài hiện trường.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     copyFeedback ?: "Sẵn sàng test reader.",

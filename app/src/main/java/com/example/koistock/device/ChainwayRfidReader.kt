@@ -94,16 +94,18 @@ class ChainwayRfidReader(
     @SuppressLint("MissingPermission")
     override fun startDeviceScan(): Flow<BleDeviceInfo> = callbackFlow {
         mutableConnectionState.value = ConnectionState.Scanning
-        sdk.startScanBTDevices(
-            ScanBTCallback { device, rssi, _ ->
-                val name = device?.name?.trim().orEmpty()
-                val mac = device?.address?.trim().orEmpty()
-                if (!looksLikeChainwayReader(name, mac)) return@ScanBTCallback
-                trySend(BleDeviceInfo(name = name, mac = mac, rssi = rssi))
-            },
-        )
+        runCatching {
+            sdk.startScanBTDevices(
+                ScanBTCallback { device, rssi, _ ->
+                    val name = device?.name?.trim().orEmpty()
+                    val mac = device?.address?.trim().orEmpty()
+                    if (!looksLikeChainwayReader(name, mac)) return@ScanBTCallback
+                    trySend(BleDeviceInfo(name = name, mac = mac, rssi = rssi))
+                },
+            )
+        }
         awaitClose {
-            sdk.stopScanBTDevices()
+            runCatching { sdk.stopScanBTDevices() }
             if (mutableConnectionState.value == ConnectionState.Scanning) {
                 mutableConnectionState.value = ConnectionState.Disconnected
             }
@@ -113,9 +115,10 @@ class ChainwayRfidReader(
     override suspend fun connect(mac: String): Boolean = suspendCancellableCoroutine { cont ->
         currentMac = mac
         mutableConnectionState.value = ConnectionState.Connecting(mac)
-        sdk.connect(
-            mac,
-            ConnectionStatusCallback<Any> { status, _ ->
+        val started = runCatching {
+            sdk.connect(
+                mac,
+                ConnectionStatusCallback<Any> { status, _ ->
                 when (status) {
                     ConnectionStatus.CONNECTED -> {
                         mutableConnectionState.value = ConnectionState.Connected(mac)
@@ -133,41 +136,51 @@ class ChainwayRfidReader(
 
                     else -> Unit
                 }
-            },
-        )
+                },
+            )
+        }
+        if (started.isFailure) {
+            mutableConnectionState.value = ConnectionState.Disconnected
+            if (cont.isActive) cont.resume(false)
+        }
     }
 
     override fun disconnect() {
-        sdk.disconnect()
+        runCatching { sdk.disconnect() }
         mutableConnectionState.value = ConnectionState.Disconnected
     }
 
-    override suspend fun scanSingle(): ScannedTag? = sdk.inventorySingleTag()?.toScannedTag()
+    override suspend fun scanSingle(): ScannedTag? =
+        runCatching { sdk.inventorySingleTag()?.toScannedTag() }.getOrNull()
 
     override fun startInventory() {
-        sdk.setInventoryCallback(inventoryCallback)
-        sdk.startInventoryTag()
+        runCatching {
+            sdk.setInventoryCallback(inventoryCallback)
+            sdk.startInventoryTag()
+        }
     }
 
     override fun stopInventory() {
-        sdk.stopInventory()
+        runCatching { sdk.stopInventory() }
     }
 
-    override suspend fun writeEpc(oldEpc: String, newEpc: String): Boolean = sdk.writeDataToEpc(oldEpc, newEpc)
+    override suspend fun writeEpc(oldEpc: String, newEpc: String): Boolean =
+        runCatching { sdk.writeDataToEpc(oldEpc, newEpc) }.getOrDefault(false)
 
     override fun startLocate(targetEpc: String) {
-        sdk.startLocation(appContext, targetEpc, 5, 0, locateCallback)
+        runCatching { sdk.startLocation(appContext, targetEpc, 5, 0, locateCallback) }
     }
 
     override fun stopLocate() {
-        sdk.stopLocation()
+        runCatching { sdk.stopLocation() }
         locateFlow.tryEmit(0)
     }
 
-    override suspend fun batteryPercent(): Int = sdk.battery.coerceIn(0, 100)
+    override suspend fun batteryPercent(): Int =
+        runCatching { sdk.battery.coerceIn(0, 100) }.getOrDefault(0)
 
     override fun beep() {
-        sdk.triggerBeep(1)
+        runCatching { sdk.triggerBeep(1) }
     }
 
     override fun release() {
@@ -176,7 +189,7 @@ class ChainwayRfidReader(
         stopInventory()
         stopLocate()
         disconnect()
-        sdk.free()
+        runCatching { sdk.free() }
     }
 
     private fun UHFTAGInfo.toScannedTag(): ScannedTag? {
