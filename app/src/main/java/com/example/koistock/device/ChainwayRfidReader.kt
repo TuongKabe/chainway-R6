@@ -27,7 +27,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
-import kotlin.math.roundToInt
 
 class ChainwayRfidReader(
     context: Context,
@@ -124,6 +123,7 @@ class ChainwayRfidReader(
                 when (status) {
                     ConnectionStatus.CONNECTED -> {
                         mutableConnectionState.value = ConnectionState.Connected(mac)
+                        runCatching { sdk.setSupportRssi(true) }
                         // Áp cấu hình mặc định ngay khi kết nối; mỗi màn sẽ áp profile riêng khi mở.
                         scope.launch { applyScanConfig(ScanProfile()) }
                         if (cont.isActive) cont.resume(true)
@@ -239,28 +239,7 @@ class ChainwayRfidReader(
     private fun UHFTAGInfo.toScannedTag(): ScannedTag? {
         val epcValue = epc?.takeIf { it.isNotBlank() } ?: return null
         val raw = rssi
-        return ScannedTag(epcValue, parseRssi(raw), raw)
-    }
-
-    /**
-     * RSSI của Chainway trả về dạng String, có thể là: thập phân ("-62.5"), số nguyên,
-     * giá trị dương (đơn vị khác), hoặc hex (vd "C5" ~ two's complement 8-bit). Thử lần lượt.
-     */
-    private fun parseRssi(raw: String?): Int {
-        val s = raw?.trim().orEmpty()
-        if (s.isEmpty()) return DEFAULT_RSSI
-        // 1) Số thập phân/nguyên.
-        s.toDoubleOrNull()?.let { v ->
-            val dbm = if (v > 0) -v else v
-            return dbm.roundToInt().coerceIn(-100, 0)
-        }
-        // 2) Hex byte (two's complement) -> dBm.
-        s.toIntOrNull(16)?.let { hex ->
-            val signed = if (hex > 127) hex - 256 else hex
-            val dbm = if (signed > 0) -signed else signed
-            return dbm.coerceIn(-100, 0)
-        }
-        return DEFAULT_RSSI
+        return ScannedTag(epcValue, RssiParser.parse(raw), raw)
     }
 
     override suspend fun setReadBeep(enabled: Boolean) {
@@ -279,7 +258,4 @@ class ChainwayRfidReader(
             normalized.contains("CHAINWAY")
     }
 
-    private companion object {
-        const val DEFAULT_RSSI = -70
-    }
 }

@@ -2,6 +2,7 @@ package com.example.koistock.ui.zones
 
 import com.example.koistock.data.model.LocationNode
 import com.example.koistock.data.model.LocationType
+import com.example.koistock.data.remote.WarehouseSyncResult
 import com.example.koistock.fakes.FakeLocationRepo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -39,5 +40,39 @@ class ZoneViewModelTest {
         assertTrue(vm.addShelf("A", "A-03", "Kệ 3") is ZoneAddResult.Ok)
         assertEquals("A", repo.items["A-03"]!!.parent)
         assertEquals(LocationType.SHELF, repo.items["A-03"]!!.type)
+    }
+
+    @Test
+    fun addZone_blankName_returnsError() = runTest {
+        val vm = ZoneViewModel(FakeLocationRepo(), { 5 }, backgroundScope)
+
+        assertTrue(vm.addZone("A", " ") is ZoneAddResult.Error)
+    }
+
+    @Test
+    fun addShelf_synchronizesAfterSave() = runTest {
+        val repo = FakeLocationRepo(mutableMapOf("A" to LocationNode("A", "Khu A", LocationType.ZONE)))
+        var syncCalls = 0
+        val vm = ZoneViewModel(repo, { 5 }, backgroundScope) {
+            syncCalls++
+            WarehouseSyncResult.Success
+        }
+
+        assertTrue(vm.addShelf("A", "A-03", "Kệ 3") is ZoneAddResult.Ok)
+        assertEquals(1, syncCalls)
+    }
+
+    @Test
+    fun updateLocation_keepsCodeAndType() = runTest {
+        val repo = FakeLocationRepo(
+            mutableMapOf("A" to LocationNode("A", "Tên cũ", LocationType.ZONE)),
+        )
+        val vm = ZoneViewModel(repo, { 5 }, backgroundScope)
+
+        assertTrue(vm.updateLocation("A", "Tên mới", null) is ZoneAddResult.Ok)
+
+        assertEquals(setOf("A"), repo.items.keys)
+        assertEquals("Tên mới", repo.items["A"]!!.name)
+        assertEquals(LocationType.ZONE, repo.items["A"]!!.type)
     }
 }

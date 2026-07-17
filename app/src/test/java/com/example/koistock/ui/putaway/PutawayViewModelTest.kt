@@ -28,6 +28,7 @@ class PutawayViewModelTest {
         val products = FakeProductRepo(mutableMapOf("S1" to product("S1", TrackingMode.SERIALIZED)))
         val tx = FakeTransactionRepo()
         val vm = PutawayViewModel(reader, tags, products, tx, "dev-1", { 5 }, this)
+        vm.setAvailableShelves(setOf("A-03"))
         vm.setLocationByTag("A-03")
         vm.startCollect()
         advanceUntilIdle()
@@ -48,6 +49,7 @@ class PutawayViewModelTest {
         val products = FakeProductRepo(mutableMapOf("B1" to product("B1", TrackingMode.BULK)))
         val tx = FakeTransactionRepo()
         val vm = PutawayViewModel(reader, tags, products, tx, "dev-1", { 5 }, this)
+        vm.setAvailableShelves(setOf("A-03"))
         vm.setLocationByTag("A-03")
         vm.startCollect()
         advanceUntilIdle()
@@ -73,6 +75,19 @@ class PutawayViewModelTest {
         advanceUntilIdle()
         assertEquals(setOf("E1", "E2"), vm.scanned.value)
         vm.stopCollect()
+        vm.clear()
+    }
+
+    @Test
+    fun setLocation_rejectsUnknownShelf() = runTest {
+        val vm = PutawayViewModel(
+            FakeRfidReader(), FakeTagRepo(), FakeProductRepo(), FakeTransactionRepo(), "d", { 0 }, this,
+        )
+        vm.setAvailableShelves(setOf("A-01"))
+
+        vm.setLocationByTag("WRONG")
+
+        assertEquals(null, vm.locationCode.value)
         vm.clear()
     }
 

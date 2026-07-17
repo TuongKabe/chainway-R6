@@ -36,7 +36,8 @@ import com.example.koistock.data.remote.HttpStockCommandRepository
 import com.example.koistock.data.remote.HttpSyncRepository
 import com.example.koistock.data.remote.HttpTagRepository
 import com.example.koistock.data.remote.HttpTransactionRepository
-import com.example.koistock.data.remote.SyncOutcome
+import com.example.koistock.data.remote.WarehouseSyncCoordinator
+import com.example.koistock.data.remote.WarehouseSyncResult
 import com.example.koistock.data.remote.KoiApiConfig
 import com.example.koistock.data.remote.KoiApiFactory
 import com.example.koistock.device.RfidReader
@@ -65,8 +66,9 @@ import com.example.koistock.ui.lookup.LookupViewModel
 import com.example.koistock.ui.putaway.PutawayScreen
 import com.example.koistock.ui.putaway.PutawayViewModel
 import com.example.koistock.ui.settings.SettingsScreen
-import com.example.koistock.ui.zones.ZoneScreen
 import com.example.koistock.ui.zones.ZoneViewModel
+import com.example.koistock.ui.warehouse.ProductManagementViewModel
+import com.example.koistock.ui.warehouse.WarehouseManagementScreen
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -91,6 +93,14 @@ fun AppShell(
     val stockCommandRepo = remember { HttpStockCommandRepository(api) }
     val syncRepo = remember { HttpSyncRepository(api) }
     val products by productRepo.observeAll().collectAsState(initial = emptyList())
+    val locations by locationRepo.observeAll().collectAsState(initial = emptyList())
+    val warehouseSync = remember {
+        WarehouseSyncCoordinator(
+            reconcile = syncRepo::reconcile,
+            refreshProducts = productRepo::refresh,
+            refreshLocations = locationRepo::refresh,
+        )
+    }
     val expectedItems = remember(products) {
         products.map { ExpectedItem(it.sku, it.name, it.quantity.toInt(), it.locationCode) }
     }
@@ -108,32 +118,23 @@ fun AppShell(
         if (isSyncing) return
         isSyncing = true
         shellScope.launch {
-            // 1. Trigger đồng bộ 2 chiều PostgreSQL ↔ Google Sheet trên backend.
-            val outcome = syncRepo.reconcile()
-            // 2. Kéo lại dữ liệu mới nhất về app để phản ánh kết quả reconcile.
-            runCatching {
-                productRepo.refresh()
-                locationRepo.refresh()
-            }
+            val outcome = warehouseSync.syncAndRefresh()
             if (state is com.example.koistock.device.ConnectionState.Connected) {
                 vm.refreshBattery()
             }
             isSyncing = false
             val now = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
             val message = when (outcome) {
-                is SyncOutcome.Success -> {
-                    val runTag = outcome.runId?.take(8)?.let { " (run $it)" } ?: ""
-                    "Đồng bộ 2 chiều Google Sheet xong lúc $now$runTag"
-                }
-                is SyncOutcome.Failure -> "Đồng bộ thất bại: ${outcome.message}"
+                WarehouseSyncResult.Success -> "Đồng bộ dữ liệu kho xong lúc $now"
+                is WarehouseSyncResult.SavedButSyncFailed -> "Dữ liệu backend đã tải, Google Sheet lỗi: ${outcome.message}"
+                is WarehouseSyncResult.LoadFailed -> "Không tải lại được dữ liệu kho: ${outcome.message}"
             }
             snackbarHostState.showSnackbar(message)
         }
     }
 
     LaunchedEffect(Unit) {
-        productRepo.refresh()
-        locationRepo.refresh()
+        runSync()
     }
 
     // Tự làm mới dữ liệu mỗi khi đầu đọc vừa kết nối.
@@ -313,16 +314,25 @@ fun AppShell(
                 }
                 InOutScreen(vm = inOutVm)
             }
-            composable(AppDestinations.Zones.route) {
+            composable(AppDestinations.Warehouse.route) {
                 val zoneScope = rememberCoroutineScope()
+                val productManagementVm = remember {
+                    ProductManagementViewModel(
+                        productRepo = productRepo,
+                        locationRepo = locationRepo,
+                        syncAfterSave = warehouseSync::syncAndRefresh,
+                        scope = zoneScope,
+                    )
+                }
                 val zoneVm = remember {
                     ZoneViewModel(
                         locationRepo = locationRepo,
                         now = { System.currentTimeMillis() },
                         scope = zoneScope,
+                        syncAfterSave = warehouseSync::syncAndRefresh,
                     )
                 }
-                ZoneScreen(vm = zoneVm)
+                WarehouseManagementScreen(productVm = productManagementVm, zoneVm = zoneVm)
             }
             composable(AppDestinations.Assign.route) {
                 val assignScope = rememberCoroutineScope()
@@ -357,7 +367,7 @@ fun AppShell(
                         profile = profile,
                     )
                 }
-                PutawayScreen(vm = putawayVm)
+                PutawayScreen(vm = putawayVm, locations = locations)
             }
         }
     }

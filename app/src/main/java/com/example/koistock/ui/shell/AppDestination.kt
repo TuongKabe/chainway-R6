@@ -30,7 +30,7 @@ object AppDestinations {
     val Count = AppDestination("count", "Quét theo khu", "Kiểm kê và đối chiếu", Icons.Filled.Inventory2)
     val Assign = AppDestination("assign", "Gán tag", "Liên kết EPC với SKU", Icons.Filled.Sell)
     val Putaway = AppDestination("putaway", "Đặt vị trí", "Gán vị trí khu kệ", Icons.Filled.PinDrop)
-    val Zones = AppDestination("zones", "Khu vực", "Quản lý khu và kệ", Icons.Filled.GridView)
+    val Warehouse = AppDestination("warehouse", "Quản lý kho", "SKU, khu và kệ", Icons.Filled.GridView)
 
     /** Các ô nghiệp vụ hiển thị trên dashboard, sắp theo luồng công việc thực tế. */
     val menuItems = listOf(
@@ -40,13 +40,13 @@ object AppDestinations {
         Count,
         Assign,
         Putaway,
-        Zones,
+        Warehouse,
     )
 
     /** Tra cứu route -> title, dùng để đặt tiêu đề TopAppBar cho màn con. */
     val titleByRoute: Map<String, String> = listOf(
         Dashboard, Settings, Pairing, Guide, Hardware,
-        Lookup, Locate, InOut, Count, Assign, Putaway, Zones,
+        Lookup, Locate, InOut, Count, Assign, Putaway, Warehouse,
     ).associate { it.route to it.title }
 
     const val ScanConfigArg = "function"

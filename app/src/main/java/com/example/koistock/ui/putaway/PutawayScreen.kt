@@ -6,30 +6,38 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.koistock.data.model.LocationNode
+import com.example.koistock.data.model.LocationType
 import com.example.koistock.ui.common.ScanTriggerDialog
+import com.example.koistock.ui.common.ShelfSelector
 import kotlinx.coroutines.launch
 
 @Composable
-fun PutawayScreen(vm: PutawayViewModel) {
+fun PutawayScreen(vm: PutawayViewModel, locations: List<LocationNode>) {
     val locationCode by vm.locationCode.collectAsState()
     val scanned by vm.scanned.collectAsState()
     val isScanning by vm.isScanning.collectAsState()
     val scope = rememberCoroutineScope()
     var result by remember { mutableStateOf<Int?>(null) }
-    var locationInput by remember(locationCode) { mutableStateOf(locationCode.orEmpty()) }
     var showScanDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(locations) {
+        vm.setAvailableShelves(
+            locations.filter { it.type == LocationType.SHELF }.map { it.code }.toSet(),
+        )
+    }
 
     DisposableEffect(vm) {
         onDispose { vm.clear() }
@@ -51,16 +59,11 @@ fun PutawayScreen(vm: PutawayViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        OutlinedTextField(
-            value = locationInput,
-            onValueChange = {
-                locationInput = it
-                vm.setLocationByTag(it.trim())
-            },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text("Khu/kệ đích") },
-            placeholder = { Text("Ví dụ: A-03") },
+        Text("Chọn khu/kệ đích", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+        ShelfSelector(
+            locations = locations,
+            selectedShelfCode = locationCode,
+            onShelfSelected = vm::setLocationByTag,
         )
         Button(
             onClick = {
@@ -68,7 +71,7 @@ fun PutawayScreen(vm: PutawayViewModel) {
                 showScanDialog = true
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = locationInput.isNotBlank(),
+            enabled = !locationCode.isNullOrBlank(),
         ) {
             Text("Bắt đầu quét")
         }
@@ -80,7 +83,7 @@ fun PutawayScreen(vm: PutawayViewModel) {
             modifier = Modifier.fillMaxWidth(),
             enabled = scanned.isNotEmpty(),
         ) {
-            Text(result?.let { "Đã gán $it món vào ${locationInput} ✓" } ?: "Gán vào vị trí")
+            Text(result?.let { "Đã gán $it món vào ${locationCode.orEmpty()} ✓" } ?: "Gán vào vị trí")
         }
     }
 }

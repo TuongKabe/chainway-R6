@@ -41,6 +41,7 @@ class PutawayViewModel(
 
     private var collectJob: Job? = null
     private var triggerJob: Job? = null
+    private var availableShelves: Set<String> = emptySet()
 
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) { reader.applyScanConfig(profile) }
@@ -65,8 +66,13 @@ class PutawayViewModel(
         }
     }
 
+    fun setAvailableShelves(codes: Set<String>) {
+        availableShelves = codes
+        if (mutableLocationCode.value !in codes) mutableLocationCode.value = null
+    }
+
     fun setLocationByTag(locationCode: String) {
-        mutableLocationCode.value = locationCode
+        mutableLocationCode.value = locationCode.takeIf { it in availableShelves }
     }
 
     fun startCollect() {
