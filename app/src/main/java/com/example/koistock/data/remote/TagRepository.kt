@@ -8,6 +8,7 @@ interface TagRepo {
     suspend fun getByEpc(epc: String): TagMapping?
     suspend fun upsert(tag: TagMapping)
     suspend fun listBySku(sku: String): List<TagMapping>
+    suspend fun voidTag(epc: String)
 }
 
 class TagRepository(
@@ -32,5 +33,15 @@ class TagRepository(
             .await()
             .documents
             .mapNotNull { doc -> doc.data?.let { TagMapping.fromMap(doc.id, it) } }
+    }
+
+    override suspend fun voidTag(epc: String) {
+        collection.document(epc).update(
+            mapOf(
+                "status" to "void",
+                "locationCode" to null,
+                "updatedAt" to FirestoreValueCodec.serverTimestamp(),
+            ),
+        ).await()
     }
 }

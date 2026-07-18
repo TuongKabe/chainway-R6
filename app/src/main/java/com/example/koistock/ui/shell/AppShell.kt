@@ -11,10 +11,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -30,6 +32,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.koistock.data.remote.HttpGsheetWriteRepository
 import com.example.koistock.data.remote.HttpLocationRepository
 import com.example.koistock.data.remote.HttpProductRepository
 import com.example.koistock.data.remote.HttpStockCommandRepository
@@ -92,6 +95,7 @@ fun AppShell(
     val locationRepo = remember { HttpLocationRepository(api) }
     val stockCommandRepo = remember { HttpStockCommandRepository(api) }
     val syncRepo = remember { HttpSyncRepository(api) }
+    val gsheetWriteRepo = remember { HttpGsheetWriteRepository(api) }
     val products by productRepo.observeAll().collectAsState(initial = emptyList())
     val locations by locationRepo.observeAll().collectAsState(initial = emptyList())
     val warehouseSync = remember {
@@ -149,7 +153,16 @@ fun AppShell(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    actionColor = MaterialTheme.colorScheme.primary,
+                )
+            }
+        },
         topBar = {
             TopAppBar(
                 title = { Text(title) },
@@ -343,6 +356,7 @@ fun AppShell(
                         reader = reader,
                         tagRepo = tagRepo,
                         productRepo = productRepo,
+                        gsheetWriteRepo = gsheetWriteRepo,
                         deviceId = "r6-device",
                         now = { System.currentTimeMillis() },
                         scope = assignScope,

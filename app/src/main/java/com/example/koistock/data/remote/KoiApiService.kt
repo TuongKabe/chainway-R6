@@ -24,6 +24,7 @@ data class ItemDto(
     val imageUrl: String? = null,
     val isActive: Boolean = true,
     val syncRev: String? = null,
+    val expectedUpdatedAt: String? = null,
 )
 
 data class EpcTagDto(
@@ -32,7 +33,9 @@ data class EpcTagDto(
     val serialNo: String? = null,
     val status: String = "active",
     val warehouse: String? = null,
+    val locationCode: String? = null,
     val syncRev: String? = null,
+    val expectedUpdatedAt: String? = null,
 )
 
 data class WarehouseDto(
@@ -42,6 +45,7 @@ data class WarehouseDto(
     val warehouseType: String,
     val isActive: Boolean = true,
     val syncRev: String? = null,
+    val expectedUpdatedAt: String? = null,
 )
 
 data class BinDto(
@@ -82,6 +86,41 @@ data class SyncResultDto(
     val resolvedRunId: String? get() = runId ?: run_id
 }
 
+data class ActiveCellWriteRequestDto(
+    val requestId: String,
+    val deviceId: String,
+    val source: String,
+    val epc: String,
+    val sku: String,
+    val barcode: String,
+    val sheetTarget: String,
+    val actor: String? = null,
+    val timestamp: Long,
+)
+
+data class ActiveCellWriteTargetDto(
+    val key: String? = null,
+    val spreadsheetId: String? = null,
+    val tabName: String? = null,
+    val description: String? = null,
+)
+
+data class ActiveCellWriteResponseDto(
+    val ok: Boolean = false,
+    val requestId: String,
+    val status: String,
+    val jobId: String? = null,
+    val target: ActiveCellWriteTargetDto? = null,
+    val deduplicated: Boolean? = null,
+    val message: String? = null,
+)
+
+data class VoidTagRequestDto(
+    val epc: String,
+    val actor: String? = null,
+    val source: String = "android_lookup",
+)
+
 interface KoiApiService {
     @GET("api/items")
     suspend fun getItems(): ApiEnvelope<List<ItemDto>>
@@ -101,6 +140,9 @@ interface KoiApiService {
     @POST("api/epc-tags")
     suspend fun upsertTag(@Body body: EpcTagDto): ApiEnvelope<EpcTagDto>
 
+    @POST("api/admin/epc-tags/void")
+    suspend fun voidTag(@Body body: VoidTagRequestDto): ApiEnvelope<EpcTagDto>
+
     @GET("api/warehouses")
     suspend fun getWarehouses(): ApiEnvelope<List<WarehouseDto>>
 
@@ -116,6 +158,9 @@ interface KoiApiService {
     /** Trigger đồng bộ 2 chiều PostgreSQL ↔ Google Sheet (chạy 2 DAG qua proxy/Airflow). */
     @POST("api/sync/reconcile")
     suspend fun syncReconcile(): ApiEnvelope<SyncResultDto>
+
+    @POST("api/gsheet/active-cell-write")
+    suspend fun queueActiveCellWrite(@Body body: ActiveCellWriteRequestDto): ActiveCellWriteResponseDto
 }
 
 object KoiApiFactory {

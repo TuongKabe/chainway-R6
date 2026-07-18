@@ -137,6 +137,9 @@ fun LookupScreen(
                         LookupField("Vị trí", state.product.locationCode.ifBlank { "Chưa gán" })
                         LookupField("EPC", state.tag.epc)
                         LookupField("Serial", state.tag.unitSerial ?: "—")
+                        OutlinedButton(onClick = vm::voidCurrentTag) {
+                            Text("Gỡ tag")
+                        }
                     }
                 }
             }

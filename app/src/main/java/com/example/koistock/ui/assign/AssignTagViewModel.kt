@@ -1,6 +1,9 @@
 package com.example.koistock.ui.assign
 
 import com.example.koistock.data.model.TagMapping
+import com.example.koistock.data.remote.ActiveCellWriteQueueResult
+import com.example.koistock.data.remote.ActiveCellWriteRequest
+import com.example.koistock.data.remote.GsheetWriteRepo
 import com.example.koistock.data.remote.ProductRepo
 import com.example.koistock.data.remote.TagRepo
 import com.example.koistock.device.RfidReader
@@ -14,9 +17,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 sealed interface AssignResult {
-    data class Success(val epc: String, val sku: String) : AssignResult
+    data class Success(
+        val epc: String,
+        val sku: String,
+        val barcode: String? = null,
+        val note: String? = null,
+    ) : AssignResult
+
+    data class PartialSuccess(
+        val epc: String,
+        val sku: String,
+        val message: String,
+    ) : AssignResult
+
     data class Error(val message: String) : AssignResult
 }
 
@@ -24,13 +40,18 @@ class AssignTagViewModel(
     private val reader: RfidReader,
     private val tagRepo: TagRepo,
     private val productRepo: ProductRepo,
+    private val gsheetWriteRepo: GsheetWriteRepo,
     private val deviceId: String,
     private val now: () -> Long,
     private val scope: CoroutineScope,
     private val profile: ScanProfile = ScanProfile(),
+    private val defaultSheetTarget: String = "koistock",
 ) {
     private val mutableScannedEpc = MutableStateFlow<String?>(null)
     val scannedEpc: StateFlow<String?> = mutableScannedEpc.asStateFlow()
+
+    private val mutableBarcode = MutableStateFlow("")
+    val barcode: StateFlow<String> = mutableBarcode.asStateFlow()
 
     private val mutableDone = MutableStateFlow(false)
     val done: StateFlow<Boolean> = mutableDone.asStateFlow()
@@ -51,9 +72,7 @@ class AssignTagViewModel(
             reader.triggerEvents.collect { pressed ->
                 if (!pressed) return@collect
                 when (profile.triggerMode) {
-                    // Bóp 1 lần: mỗi lần bóp quét 1 thẻ.
                     TriggerMode.SINGLE -> scanBlank()
-                    // Liên tục: bóp lần 1 bắt đầu, bóp lần 2 kết thúc.
                     TriggerMode.CONTINUOUS -> if (holdActive) stopHold() else startHold()
                 }
             }
@@ -79,6 +98,14 @@ class AssignTagViewModel(
         holdJob?.cancel()
     }
 
+    fun updateBarcode(value: String) {
+        mutableBarcode.value = value.trim()
+    }
+
+    fun clearBarcode() {
+        mutableBarcode.value = ""
+    }
+
     fun scanBlank() {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             val epc = reader.scanSingle()?.epc
@@ -90,7 +117,7 @@ class AssignTagViewModel(
         }
     }
 
-    fun assign(sku: String, encodeStructured: Boolean) {
+    fun assign(sku: String, encodeStructured: Boolean, pushBarcodeToSheet: Boolean) {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             mutableWorking.value = true
             try {
@@ -104,6 +131,12 @@ class AssignTagViewModel(
                     mutableResult.value = AssignResult.Error("Không tìm thấy SKU $sku trên hệ thống.")
                     return@launch
                 }
+                val barcodeValue = mutableBarcode.value.trim()
+                if (pushBarcodeToSheet && barcodeValue.isBlank()) {
+                    mutableResult.value = AssignResult.Error("Chưa có mã vạch. Hãy quét hoặc nhập barcode trước.")
+                    return@launch
+                }
+
                 val timestamp = now()
                 val finalEpc = if (encodeStructured) {
                     val serial = (tagRepo.listBySku(sku).size + 1).toString().padStart(4, '0')
@@ -133,9 +166,49 @@ class AssignTagViewModel(
                     return@launch
                 }
 
-                reader.beep()
-                mutableDone.value = true
-                mutableResult.value = AssignResult.Success(finalEpc, sku)
+                if (pushBarcodeToSheet) {
+                    when (
+                        val queueResult = gsheetWriteRepo.queueActiveCellWrite(
+                            ActiveCellWriteRequest(
+                                requestId = UUID.randomUUID().toString(),
+                                deviceId = deviceId,
+                                epc = finalEpc,
+                                sku = sku,
+                                barcode = barcodeValue,
+                                sheetTarget = defaultSheetTarget,
+                                timestamp = timestamp,
+                            ),
+                        )
+                    ) {
+                        is ActiveCellWriteQueueResult.Success -> {
+                            reader.beep()
+                            mutableDone.value = true
+                            mutableResult.value = AssignResult.Success(
+                                epc = finalEpc,
+                                sku = sku,
+                                barcode = barcodeValue,
+                                note = queueResult.message ?: "Đã xếp lệnh ghi Google Sheet (${queueResult.status}).",
+                            )
+                        }
+
+                        is ActiveCellWriteQueueResult.Error -> {
+                            mutableDone.value = true
+                            mutableResult.value = AssignResult.PartialSuccess(
+                                epc = finalEpc,
+                                sku = sku,
+                                message = "Đã gán tag nhưng chưa đẩy được Google Sheet: ${queueResult.message}",
+                            )
+                        }
+                    }
+                } else {
+                    reader.beep()
+                    mutableDone.value = true
+                    mutableResult.value = AssignResult.Success(
+                        epc = finalEpc,
+                        sku = sku,
+                        note = "Đã gán tag thành công.",
+                    )
+                }
             } finally {
                 mutableWorking.value = false
             }

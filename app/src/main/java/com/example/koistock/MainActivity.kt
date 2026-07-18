@@ -3,6 +3,7 @@ package com.example.koistock
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val prefs = DevicePrefs(dataStore)
         val scanProfileStore = ScanProfileStore(dataStore)
@@ -57,7 +59,7 @@ class MainActivity : ComponentActivity() {
                 launcher.launch(permissions)
             }
 
-            KOIStockTheme {
+            KOIStockTheme(darkTheme = false) {
                 AppShell(vm, reader, scanProfileStore)
             }
         }

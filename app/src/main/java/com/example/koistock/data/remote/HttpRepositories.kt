@@ -114,12 +114,16 @@ class HttpTagRepository(
     override suspend fun listBySku(sku: String): List<TagMapping> =
         runCatching { api.getTagsByItem(sku).data.map { it.toTagMapping() } }.getOrDefault(emptyList())
 
+    override suspend fun voidTag(epc: String) {
+        api.voidTag(VoidTagRequestDto(epc = epc))
+    }
+
     private fun EpcTagDto.toTagMapping(): TagMapping = TagMapping(
         epc = epc,
         sku = itemCode,
         unitSerial = serialNo,
         status = status,
-        locationCode = warehouse,
+        locationCode = locationCode ?: warehouse,
         syncRev = syncRev?.toLongOrNull() ?: 0L,
         origin = "api",
     )

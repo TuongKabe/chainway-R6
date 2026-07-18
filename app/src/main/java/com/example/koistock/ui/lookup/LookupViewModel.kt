@@ -99,6 +99,19 @@ class LookupViewModel(
         }
     }
 
+    fun voidCurrentTag() {
+        val state = mutableResult.value
+        if (state !is LookupResult.Found) return
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                tagRepo.voidTag(state.tag.epc)
+                mutableResult.value = LookupResult.Error("Đã gỡ tag ${state.tag.epc}. Quét lại để kiểm tra trạng thái mới.")
+            } catch (t: Throwable) {
+                mutableResult.value = LookupResult.Error(t.message ?: "Gỡ tag thất bại.")
+            }
+        }
+    }
+
     fun clear() {
         triggerJob?.cancel()
         holdJob?.cancel()
