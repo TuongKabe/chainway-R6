@@ -146,6 +146,10 @@ data class AssignSessionScanRequestDto(
     val actor: String? = null,
 )
 
+data class AssignSessionConfirmRequestDto(
+    val actor: String? = null,
+)
+
 interface KoiApiService {
     @GET("api/items")
     suspend fun getItems(): ApiEnvelope<List<ItemDto>>
@@ -175,6 +179,12 @@ interface KoiApiService {
     suspend fun submitAssignSessionScan(
         @Path("id") id: String,
         @Body body: AssignSessionScanRequestDto,
+    ): ApiEnvelope<AssignSessionDto>
+
+    @POST("api/admin/assign-sessions/{id}/confirm")
+    suspend fun confirmAssignSession(
+        @Path("id") id: String,
+        @Body body: AssignSessionConfirmRequestDto,
     ): ApiEnvelope<AssignSessionDto>
 
     @GET("api/warehouses")

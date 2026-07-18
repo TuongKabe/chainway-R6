@@ -49,6 +49,7 @@ fun AssignTagScreen(
     val result by vm.result.collectAsState()
     val assignSession by vm.assignSession.collectAsState()
     val sessionLoading by vm.sessionLoading.collectAsState()
+    val autoRefresh by vm.autoRefresh.collectAsState()
     var structured by remember { mutableStateOf(false) }
     var selectedSku by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
@@ -77,12 +78,17 @@ fun AssignTagScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Bridge webapp ↔ Android: nhận session chờ từ web rồi quét EPC tại máy R6.",
+            "Bridge webapp ↔ Android: app sẽ tự tìm session chờ và có thể auto confirm luôn sau khi quét.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Switch(checked = autoRefresh, onCheckedChange = vm::setAutoRefresh)
+            Spacer(Modifier.width(8.dp))
+            Text("Tự làm mới session web mỗi vài giây")
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = vm::refreshLatestAssignSession, enabled = !sessionLoading && !working, modifier = Modifier.weight(1f)) {
+            Button(onClick = { vm.refreshLatestAssignSession() }, enabled = !sessionLoading && !working, modifier = Modifier.weight(1f)) {
                 if (sessionLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
@@ -103,8 +109,8 @@ fun AssignTagScreen(
                 Text("Kho: ${assignSession?.warehouse ?: "—"} · Vị trí: ${assignSession?.locationCode ?: "—"}")
                 Text(
                     when (assignSession?.status) {
-                        "scanned" -> "Web đã nhận EPC, quay lại webapp để Confirm assign."
-                        "confirmed" -> "Session này đã confirm xong trên webapp."
+                        "confirmed" -> "Session này đã auto confirm xong. Webapp sẽ hiện confirmed."
+                        "scanned" -> "Session đang ở scanned. App sẽ thử auto confirm luôn sau khi gửi EPC."
                         else -> "Đang chờ EPC từ thiết bị R6."
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -129,7 +135,7 @@ fun AssignTagScreen(
                 if (working) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Gửi EPC sang web session")
+                    Text("Gửi EPC + auto confirm")
                 }
             }
         }
@@ -229,7 +235,7 @@ private fun AssignResultDialog(
             (if (sentToWebSession) "Đã gửi EPC sang web ✓" else "Gán tag thành công ✓") to detail
         }
 
-        is AssignResult.PartialSuccess -> "Gán tag xong, Sheet chưa xong" to result.message
+        is AssignResult.PartialSuccess -> "Gán tag xong, bước sau chưa xong" to result.message
         is AssignResult.Error -> "Gán tag thất bại" to result.message
     }
     AlertDialog(

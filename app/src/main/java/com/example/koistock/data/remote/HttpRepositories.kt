@@ -140,7 +140,7 @@ class HttpAssignSessionRepository(
         null
     }
 
-    override suspend fun submitScan(sessionId: String, epc: String, serialNo: String?): AssignSessionScanResult {
+    override suspend fun submitScan(sessionId: String, epc: String, serialNo: String?): AssignSessionActionResult {
         return try {
             val session = api.submitAssignSessionScan(
                 sessionId,
@@ -150,14 +150,31 @@ class HttpAssignSessionRepository(
                     actor = "android_r6",
                 ),
             ).data
-            AssignSessionScanResult.Success(session.toSnapshot())
+            AssignSessionActionResult.Success(session.toSnapshot())
         } catch (e: HttpException) {
             val body = e.response()?.errorBody()?.string().orEmpty()
-            AssignSessionScanResult.Error(body.ifBlank { "Không đẩy được EPC vào web session (${e.code()})." })
+            AssignSessionActionResult.Error(body.ifBlank { "Không đẩy được EPC vào web session (${e.code()})." })
         } catch (e: IOException) {
-            AssignSessionScanResult.Error("Không kết nối được backend để gửi EPC vào web session.")
+            AssignSessionActionResult.Error("Không kết nối được backend để gửi EPC vào web session.")
         } catch (e: Exception) {
-            AssignSessionScanResult.Error(e.message ?: "Gửi EPC vào web session thất bại.")
+            AssignSessionActionResult.Error(e.message ?: "Gửi EPC vào web session thất bại.")
+        }
+    }
+
+    override suspend fun confirm(sessionId: String): AssignSessionActionResult {
+        return try {
+            val session = api.confirmAssignSession(
+                sessionId,
+                AssignSessionConfirmRequestDto(actor = "android_r6"),
+            ).data
+            AssignSessionActionResult.Success(session.toSnapshot())
+        } catch (e: HttpException) {
+            val body = e.response()?.errorBody()?.string().orEmpty()
+            AssignSessionActionResult.Error(body.ifBlank { "Không auto confirm được web session (${e.code()})." })
+        } catch (e: IOException) {
+            AssignSessionActionResult.Error("Không kết nối được backend để auto confirm web session.")
+        } catch (e: Exception) {
+            AssignSessionActionResult.Error(e.message ?: "Auto confirm web session thất bại.")
         }
     }
 

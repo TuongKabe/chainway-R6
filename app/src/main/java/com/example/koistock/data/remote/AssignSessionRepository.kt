@@ -19,12 +19,13 @@ data class AssignSessionSnapshot(
     val item: AssignSessionItem? = null,
 )
 
-sealed interface AssignSessionScanResult {
-    data class Success(val session: AssignSessionSnapshot) : AssignSessionScanResult
-    data class Error(val message: String) : AssignSessionScanResult
+sealed interface AssignSessionActionResult {
+    data class Success(val session: AssignSessionSnapshot) : AssignSessionActionResult
+    data class Error(val message: String) : AssignSessionActionResult
 }
 
 interface AssignSessionRepo {
     suspend fun getLatestWaiting(): AssignSessionSnapshot?
-    suspend fun submitScan(sessionId: String, epc: String, serialNo: String? = null): AssignSessionScanResult
+    suspend fun submitScan(sessionId: String, epc: String, serialNo: String? = null): AssignSessionActionResult
+    suspend fun confirm(sessionId: String): AssignSessionActionResult
 }

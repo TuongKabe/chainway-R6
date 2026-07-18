@@ -3,8 +3,8 @@ package com.example.koistock.ui.assign
 import com.example.koistock.data.model.TagMapping
 import com.example.koistock.data.remote.ActiveCellWriteQueueResult
 import com.example.koistock.data.remote.ActiveCellWriteRequest
+import com.example.koistock.data.remote.AssignSessionActionResult
 import com.example.koistock.data.remote.AssignSessionRepo
-import com.example.koistock.data.remote.AssignSessionScanResult
 import com.example.koistock.data.remote.AssignSessionSnapshot
 import com.example.koistock.data.remote.GsheetWriteRepo
 import com.example.koistock.data.remote.ProductRepo
@@ -16,6 +16,7 @@ import com.example.koistock.domain.EpcCodec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -72,9 +73,13 @@ class AssignTagViewModel(
     private val mutableSessionLoading = MutableStateFlow(false)
     val sessionLoading: StateFlow<Boolean> = mutableSessionLoading.asStateFlow()
 
+    private val mutableAutoRefresh = MutableStateFlow(true)
+    val autoRefresh: StateFlow<Boolean> = mutableAutoRefresh.asStateFlow()
+
     private var triggerJob: Job? = null
     private var holdJob: Job? = null
     private var holdActive = false
+    private var sessionPollJob: Job? = null
 
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) { reader.applyScanConfig(profile) }
@@ -87,7 +92,7 @@ class AssignTagViewModel(
                 }
             }
         }
-        refreshLatestAssignSession()
+        startSessionPolling()
     }
 
     private fun startHold() {
@@ -109,6 +114,22 @@ class AssignTagViewModel(
         holdJob?.cancel()
     }
 
+    private fun startSessionPolling() {
+        sessionPollJob?.cancel()
+        sessionPollJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            while (true) {
+                if (mutableAutoRefresh.value && !mutableWorking.value) {
+                    refreshLatestAssignSession(silent = true)
+                }
+                delay(4000)
+            }
+        }
+    }
+
+    fun setAutoRefresh(enabled: Boolean) {
+        mutableAutoRefresh.value = enabled
+    }
+
     fun updateBarcode(value: String) {
         mutableBarcode.value = value.trim()
     }
@@ -128,13 +149,13 @@ class AssignTagViewModel(
         }
     }
 
-    fun refreshLatestAssignSession() {
+    fun refreshLatestAssignSession(silent: Boolean = false) {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            mutableSessionLoading.value = true
+            if (!silent) mutableSessionLoading.value = true
             try {
                 mutableAssignSession.value = assignSessionRepo.getLatestWaiting()
             } finally {
-                mutableSessionLoading.value = false
+                if (!silent) mutableSessionLoading.value = false
             }
         }
     }
@@ -157,18 +178,32 @@ class AssignTagViewModel(
             }
             mutableWorking.value = true
             try {
-                when (val result = assignSessionRepo.submitScan(session.id, epc, serialNo = null)) {
-                    is AssignSessionScanResult.Success -> {
-                        mutableAssignSession.value = result.session
-                        reader.beep()
-                        mutableResult.value = AssignResult.Success(
-                            epc = epc,
-                            sku = session.itemCode,
-                            note = "Đã đẩy EPC sang web session ${session.id}. Quay lại webapp để Confirm assign.",
-                        )
+                when (val scanResult = assignSessionRepo.submitScan(session.id, epc, serialNo = null)) {
+                    is AssignSessionActionResult.Success -> {
+                        when (val confirmResult = assignSessionRepo.confirm(session.id)) {
+                            is AssignSessionActionResult.Success -> {
+                                mutableAssignSession.value = confirmResult.session
+                                reader.beep()
+                                mutableResult.value = AssignResult.Success(
+                                    epc = epc,
+                                    sku = session.itemCode,
+                                    note = "Đã gửi EPC và auto confirm web session ${session.id}. Webapp sẽ tự chuyển sang confirmed.",
+                                )
+                            }
+
+                            is AssignSessionActionResult.Error -> {
+                                mutableAssignSession.value = scanResult.session
+                                mutableResult.value = AssignResult.PartialSuccess(
+                                    epc = epc,
+                                    sku = session.itemCode,
+                                    message = "Web đã nhận EPC nhưng auto confirm chưa xong: ${confirmResult.message}",
+                                )
+                            }
+                        }
                     }
-                    is AssignSessionScanResult.Error -> {
-                        mutableResult.value = AssignResult.Error(result.message)
+
+                    is AssignSessionActionResult.Error -> {
+                        mutableResult.value = AssignResult.Error(scanResult.message)
                     }
                 }
             } finally {
@@ -282,5 +317,6 @@ class AssignTagViewModel(
     fun clear() {
         triggerJob?.cancel()
         holdJob?.cancel()
+        sessionPollJob?.cancel()
     }
 }
