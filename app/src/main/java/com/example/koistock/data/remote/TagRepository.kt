@@ -1,5 +1,6 @@
 package com.example.koistock.data.remote
 
+import com.example.koistock.data.model.FirestoreValueCodec
 import com.example.koistock.data.model.TagMapping
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await

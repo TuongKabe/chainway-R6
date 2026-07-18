@@ -5,6 +5,12 @@ import com.example.koistock.data.model.Product
 import com.example.koistock.data.model.TagMapping
 import com.example.koistock.data.model.Transaction
 import com.example.koistock.data.remote.LocationRepo
+import com.example.koistock.data.remote.ActiveCellWriteQueueResult
+import com.example.koistock.data.remote.ActiveCellWriteRequest
+import com.example.koistock.data.remote.AssignSessionActionResult
+import com.example.koistock.data.remote.AssignSessionRepo
+import com.example.koistock.data.remote.AssignSessionSnapshot
+import com.example.koistock.data.remote.GsheetWriteRepo
 import com.example.koistock.data.remote.ProductRepo
 import com.example.koistock.data.remote.TagRepo
 import com.example.koistock.data.remote.TransactionRepo
@@ -34,6 +40,30 @@ class FakeTagRepo(
 
     override suspend fun listBySku(sku: String): List<TagMapping> {
         return items.values.filter { it.sku == sku }
+    }
+
+    override suspend fun voidTag(epc: String) {
+        items[epc]?.let { items[epc] = it.copy(status = "void", locationCode = null) }
+    }
+}
+
+class FakeGsheetWriteRepo : GsheetWriteRepo {
+    override suspend fun queueActiveCellWrite(request: ActiveCellWriteRequest): ActiveCellWriteQueueResult {
+        return ActiveCellWriteQueueResult.Success(request.requestId, "queued", null, null)
+    }
+}
+
+class FakeAssignSessionRepo : AssignSessionRepo {
+    override suspend fun getLatestWaiting(): AssignSessionSnapshot? = null
+
+    override suspend fun submitScan(
+        sessionId: String,
+        epc: String,
+        serialNo: String?,
+    ): AssignSessionActionResult = AssignSessionActionResult.Error("No fake session")
+
+    override suspend fun confirm(sessionId: String): AssignSessionActionResult {
+        return AssignSessionActionResult.Error("No fake session")
     }
 }
 

@@ -5,7 +5,10 @@ import com.example.koistock.data.model.TrackingMode
 import com.example.koistock.device.FakeRfidReader
 import com.example.koistock.device.ScannedTag
 import com.example.koistock.fakes.FakeProductRepo
+import com.example.koistock.fakes.FakeAssignSessionRepo
+import com.example.koistock.fakes.FakeGsheetWriteRepo
 import com.example.koistock.fakes.FakeTagRepo
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -19,7 +22,7 @@ class AssignTagViewModelTest {
     @Test
     fun scanBlank_capturesEpc() = runTest {
         val reader = FakeRfidReader().apply { scannedSingle = ScannedTag("E2000ABC", -30) }
-        val vm = AssignTagViewModel(reader, FakeTagRepo(), sampleProducts(), "dev-1", { 100 }, this.backgroundScope)
+        val vm = viewModel(reader, FakeTagRepo(), this.backgroundScope)
         vm.scanBlank()
         advanceUntilIdle()
         assertEquals("E2000ABC", vm.scannedEpc.value)
@@ -29,10 +32,10 @@ class AssignTagViewModelTest {
     fun assign_raw_writesTagMappingWithScannedEpc() = runTest {
         val reader = FakeRfidReader().apply { scannedSingle = ScannedTag("E2000ABC", -30) }
         val tags = FakeTagRepo()
-        val vm = AssignTagViewModel(reader, tags, sampleProducts(), "dev-1", { 100 }, this.backgroundScope)
+        val vm = viewModel(reader, tags, this.backgroundScope)
         vm.scanBlank()
         advanceUntilIdle()
-        vm.assign("SKU1", encodeStructured = false)
+        vm.assign("SKU1", encodeStructured = false, pushBarcodeToSheet = false)
         advanceUntilIdle()
         val saved = tags.items["E2000ABC"]!!
         assertEquals("SKU1", saved.sku)
@@ -44,10 +47,10 @@ class AssignTagViewModelTest {
     fun assign_structured_writesEncodedEpcToTagAndMapping() = runTest {
         val reader = FakeRfidReader().apply { scannedSingle = ScannedTag("E2000ABC", -30) }
         val tags = FakeTagRepo()
-        val vm = AssignTagViewModel(reader, tags, sampleProducts(), "dev-1", { 100 }, this.backgroundScope)
+        val vm = viewModel(reader, tags, this.backgroundScope)
         vm.scanBlank()
         advanceUntilIdle()
-        vm.assign("SKU1", encodeStructured = true)
+        vm.assign("SKU1", encodeStructured = true, pushBarcodeToSheet = false)
         advanceUntilIdle()
         assertEquals("E2000ABC", reader.lastWrittenEpc?.first)
         assertTrue(reader.lastWrittenEpc?.second?.startsWith("KOI-SKU1-") == true)
@@ -57,7 +60,7 @@ class AssignTagViewModelTest {
     @Test
     fun trigger_click_scansBlankTag() = runTest {
         val reader = FakeRfidReader().apply { scannedSingle = ScannedTag("E2000TRIGGER", -30) }
-        val vm = AssignTagViewModel(reader, FakeTagRepo(), sampleProducts(), "dev-1", { 100 }, this.backgroundScope)
+        val vm = viewModel(reader, FakeTagRepo(), this.backgroundScope)
         runCurrent()
 
         reader.emitTrigger(true)
@@ -72,5 +75,20 @@ class AssignTagViewModelTest {
         mutableMapOf(
             "SKU1" to Product("SKU1", "Ca KOI", "con", TrackingMode.SERIALIZED, 1, "A-03"),
         ),
+    )
+
+    private fun viewModel(
+        reader: FakeRfidReader,
+        tags: FakeTagRepo,
+        scope: CoroutineScope,
+    ) = AssignTagViewModel(
+        reader = reader,
+        tagRepo = tags,
+        productRepo = sampleProducts(),
+        gsheetWriteRepo = FakeGsheetWriteRepo(),
+        assignSessionRepo = FakeAssignSessionRepo(),
+        deviceId = "dev-1",
+        now = { 100 },
+        scope = scope,
     )
 }
