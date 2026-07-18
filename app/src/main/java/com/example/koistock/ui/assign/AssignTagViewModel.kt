@@ -3,6 +3,9 @@ package com.example.koistock.ui.assign
 import com.example.koistock.data.model.TagMapping
 import com.example.koistock.data.remote.ActiveCellWriteQueueResult
 import com.example.koistock.data.remote.ActiveCellWriteRequest
+import com.example.koistock.data.remote.AssignSessionRepo
+import com.example.koistock.data.remote.AssignSessionScanResult
+import com.example.koistock.data.remote.AssignSessionSnapshot
 import com.example.koistock.data.remote.GsheetWriteRepo
 import com.example.koistock.data.remote.ProductRepo
 import com.example.koistock.data.remote.TagRepo
@@ -41,6 +44,7 @@ class AssignTagViewModel(
     private val tagRepo: TagRepo,
     private val productRepo: ProductRepo,
     private val gsheetWriteRepo: GsheetWriteRepo,
+    private val assignSessionRepo: AssignSessionRepo,
     private val deviceId: String,
     private val now: () -> Long,
     private val scope: CoroutineScope,
@@ -62,6 +66,12 @@ class AssignTagViewModel(
     private val mutableResult = MutableStateFlow<AssignResult?>(null)
     val result: StateFlow<AssignResult?> = mutableResult.asStateFlow()
 
+    private val mutableAssignSession = MutableStateFlow<AssignSessionSnapshot?>(null)
+    val assignSession: StateFlow<AssignSessionSnapshot?> = mutableAssignSession.asStateFlow()
+
+    private val mutableSessionLoading = MutableStateFlow(false)
+    val sessionLoading: StateFlow<Boolean> = mutableSessionLoading.asStateFlow()
+
     private var triggerJob: Job? = null
     private var holdJob: Job? = null
     private var holdActive = false
@@ -77,6 +87,7 @@ class AssignTagViewModel(
                 }
             }
         }
+        refreshLatestAssignSession()
     }
 
     private fun startHold() {
@@ -113,6 +124,55 @@ class AssignTagViewModel(
             mutableDone.value = false
             if (epc == null) {
                 mutableResult.value = AssignResult.Error("Không đọc được tag. Đưa tag lại gần đầu đọc rồi thử lại.")
+            }
+        }
+    }
+
+    fun refreshLatestAssignSession() {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            mutableSessionLoading.value = true
+            try {
+                mutableAssignSession.value = assignSessionRepo.getLatestWaiting()
+            } finally {
+                mutableSessionLoading.value = false
+            }
+        }
+    }
+
+    fun clearAssignSession() {
+        mutableAssignSession.value = null
+    }
+
+    fun pushCurrentEpcToAssignSession() {
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val session = mutableAssignSession.value
+            val epc = mutableScannedEpc.value
+            if (session == null) {
+                mutableResult.value = AssignResult.Error("Chưa có web session nào đang chờ. Hãy bấm Nhận session web trước.")
+                return@launch
+            }
+            if (epc.isNullOrBlank()) {
+                mutableResult.value = AssignResult.Error("Chưa có EPC vừa quét để gửi sang web session.")
+                return@launch
+            }
+            mutableWorking.value = true
+            try {
+                when (val result = assignSessionRepo.submitScan(session.id, epc, serialNo = null)) {
+                    is AssignSessionScanResult.Success -> {
+                        mutableAssignSession.value = result.session
+                        reader.beep()
+                        mutableResult.value = AssignResult.Success(
+                            epc = epc,
+                            sku = session.itemCode,
+                            note = "Đã đẩy EPC sang web session ${session.id}. Quay lại webapp để Confirm assign.",
+                        )
+                    }
+                    is AssignSessionScanResult.Error -> {
+                        mutableResult.value = AssignResult.Error(result.message)
+                    }
+                }
+            } finally {
+                mutableWorking.value = false
             }
         }
     }

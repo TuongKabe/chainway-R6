@@ -121,6 +121,31 @@ data class VoidTagRequestDto(
     val source: String = "android_lookup",
 )
 
+data class AssignSessionItemDto(
+    val itemCode: String,
+    val itemName: String,
+)
+
+data class AssignSessionDto(
+    val id: String,
+    val itemCode: String,
+    val requestedBy: String? = null,
+    val status: String,
+    val scannedEpc: String? = null,
+    val scannedSerialNo: String? = null,
+    val warehouse: String? = null,
+    val locationCode: String? = null,
+    val expiresAt: String,
+    val note: String? = null,
+    val item: AssignSessionItemDto? = null,
+)
+
+data class AssignSessionScanRequestDto(
+    val epc: String,
+    val serialNo: String? = null,
+    val actor: String? = null,
+)
+
 interface KoiApiService {
     @GET("api/items")
     suspend fun getItems(): ApiEnvelope<List<ItemDto>>
@@ -142,6 +167,15 @@ interface KoiApiService {
 
     @POST("api/admin/epc-tags/void")
     suspend fun voidTag(@Body body: VoidTagRequestDto): ApiEnvelope<EpcTagDto>
+
+    @GET("api/admin/assign-sessions/latest-waiting")
+    suspend fun getLatestWaitingAssignSession(): ApiEnvelope<AssignSessionDto?>
+
+    @POST("api/admin/assign-sessions/{id}/scan")
+    suspend fun submitAssignSessionScan(
+        @Path("id") id: String,
+        @Body body: AssignSessionScanRequestDto,
+    ): ApiEnvelope<AssignSessionDto>
 
     @GET("api/warehouses")
     suspend fun getWarehouses(): ApiEnvelope<List<WarehouseDto>>

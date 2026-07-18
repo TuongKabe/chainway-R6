@@ -129,6 +129,53 @@ class HttpTagRepository(
     )
 }
 
+class HttpAssignSessionRepository(
+    private val api: KoiApiService,
+) : AssignSessionRepo {
+    override suspend fun getLatestWaiting(): AssignSessionSnapshot? = try {
+        api.getLatestWaitingAssignSession().data?.toSnapshot()
+    } catch (_: HttpException) {
+        null
+    } catch (_: IOException) {
+        null
+    }
+
+    override suspend fun submitScan(sessionId: String, epc: String, serialNo: String?): AssignSessionScanResult {
+        return try {
+            val session = api.submitAssignSessionScan(
+                sessionId,
+                AssignSessionScanRequestDto(
+                    epc = epc,
+                    serialNo = serialNo,
+                    actor = "android_r6",
+                ),
+            ).data
+            AssignSessionScanResult.Success(session.toSnapshot())
+        } catch (e: HttpException) {
+            val body = e.response()?.errorBody()?.string().orEmpty()
+            AssignSessionScanResult.Error(body.ifBlank { "Không đẩy được EPC vào web session (${e.code()})." })
+        } catch (e: IOException) {
+            AssignSessionScanResult.Error("Không kết nối được backend để gửi EPC vào web session.")
+        } catch (e: Exception) {
+            AssignSessionScanResult.Error(e.message ?: "Gửi EPC vào web session thất bại.")
+        }
+    }
+
+    private fun AssignSessionDto.toSnapshot(): AssignSessionSnapshot = AssignSessionSnapshot(
+        id = id,
+        itemCode = itemCode,
+        requestedBy = requestedBy,
+        status = status,
+        scannedEpc = scannedEpc,
+        scannedSerialNo = scannedSerialNo,
+        warehouse = warehouse,
+        locationCode = locationCode,
+        expiresAt = expiresAt,
+        note = note,
+        item = item?.let { AssignSessionItem(itemCode = it.itemCode, itemName = it.itemName) },
+    )
+}
+
 class HttpTransactionRepository(
     private val api: KoiApiService,
 ) : TransactionRepo {

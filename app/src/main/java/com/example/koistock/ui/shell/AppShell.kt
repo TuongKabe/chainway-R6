@@ -32,6 +32,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.koistock.data.remote.HttpAssignSessionRepository
 import com.example.koistock.data.remote.HttpGsheetWriteRepository
 import com.example.koistock.data.remote.HttpLocationRepository
 import com.example.koistock.data.remote.HttpProductRepository
@@ -96,6 +97,7 @@ fun AppShell(
     val stockCommandRepo = remember { HttpStockCommandRepository(api) }
     val syncRepo = remember { HttpSyncRepository(api) }
     val gsheetWriteRepo = remember { HttpGsheetWriteRepository(api) }
+    val assignSessionRepo = remember { HttpAssignSessionRepository(api) }
     val products by productRepo.observeAll().collectAsState(initial = emptyList())
     val locations by locationRepo.observeAll().collectAsState(initial = emptyList())
     val warehouseSync = remember {
@@ -357,6 +359,7 @@ fun AppShell(
                         tagRepo = tagRepo,
                         productRepo = productRepo,
                         gsheetWriteRepo = gsheetWriteRepo,
+                        assignSessionRepo = assignSessionRepo,
                         deviceId = "r6-device",
                         now = { System.currentTimeMillis() },
                         scope = assignScope,

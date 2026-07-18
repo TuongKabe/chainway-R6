@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +47,8 @@ fun AssignTagScreen(
     val barcode by vm.barcode.collectAsState()
     val working by vm.working.collectAsState()
     val result by vm.result.collectAsState()
+    val assignSession by vm.assignSession.collectAsState()
+    val sessionLoading by vm.sessionLoading.collectAsState()
     var structured by remember { mutableStateOf(false) }
     var selectedSku by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
@@ -53,6 +56,10 @@ fun AssignTagScreen(
     val filtered = remember(query, products) {
         if (query.isBlank()) products
         else products.filter { it.name.contains(query, true) || it.sku.contains(query, true) }
+    }
+
+    LaunchedEffect(assignSession?.itemCode) {
+        assignSession?.itemCode?.let { selectedSku = it }
     }
 
     DisposableEffect(vm) {
@@ -69,6 +76,42 @@ fun AssignTagScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        Text(
+            "Bridge webapp ↔ Android: nhận session chờ từ web rồi quét EPC tại máy R6.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = vm::refreshLatestAssignSession, enabled = !sessionLoading && !working, modifier = Modifier.weight(1f)) {
+                if (sessionLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Nhận session web")
+                }
+            }
+            OutlinedButton(onClick = vm::clearAssignSession, enabled = assignSession != null, modifier = Modifier.weight(1f)) {
+                Text("Bỏ session")
+            }
+        }
+        if (assignSession != null) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text("Session web: ${assignSession?.id}", fontWeight = FontWeight.SemiBold)
+                Text("SKU: ${assignSession?.item?.itemName ?: assignSession?.itemCode ?: "—"}")
+                Text("Kho: ${assignSession?.warehouse ?: "—"} · Vị trí: ${assignSession?.locationCode ?: "—"}")
+                Text(
+                    when (assignSession?.status) {
+                        "scanned" -> "Web đã nhận EPC, quay lại webapp để Confirm assign."
+                        "confirmed" -> "Session này đã confirm xong trên webapp."
+                        else -> "Đang chờ EPC từ thiết bị R6."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
         Button(onClick = vm::scanBlank, modifier = Modifier.fillMaxWidth()) {
             Text("Quét tag trống")
         }
@@ -77,6 +120,19 @@ fun AssignTagScreen(
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
         )
+        if (assignSession != null) {
+            Button(
+                onClick = vm::pushCurrentEpcToAssignSession,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !working && (epc ?: prefillEpc) != null,
+            ) {
+                if (working) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Gửi EPC sang web session")
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(checked = structured, onCheckedChange = { structured = it })
             Spacer(Modifier.width(8.dp))
@@ -97,7 +153,7 @@ fun AssignTagScreen(
                 Text("Xóa barcode")
             }
             Text(
-                "Sheet target: sim_sold",
+                "Sheet target: koistock",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterVertically),
@@ -158,12 +214,19 @@ private fun AssignResultDialog(
 ) {
     val (title, body) = when (result) {
         is AssignResult.Success -> {
+            val sentToWebSession = result.note?.contains("web session", ignoreCase = true) == true
             val detail = buildString {
-                append("Đã liên kết EPC ${result.epc} với SKU ${result.sku}.")
+                append(
+                    if (sentToWebSession) {
+                        "Đã gửi EPC ${result.epc} cho SKU ${result.sku} sang web session."
+                    } else {
+                        "Đã liên kết EPC ${result.epc} với SKU ${result.sku}."
+                    }
+                )
                 result.barcode?.takeIf { it.isNotBlank() }?.let { append("\nBarcode: $it") }
                 result.note?.takeIf { it.isNotBlank() }?.let { append("\n$it") }
             }
-            "Gán tag thành công ✓" to detail
+            (if (sentToWebSession) "Đã gửi EPC sang web ✓" else "Gán tag thành công ✓") to detail
         }
 
         is AssignResult.PartialSuccess -> "Gán tag xong, Sheet chưa xong" to result.message
