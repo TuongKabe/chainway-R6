@@ -187,7 +187,7 @@ class AssignTagViewModel(
                                 mutableResult.value = AssignResult.Success(
                                     epc = epc,
                                     sku = session.itemCode,
-                                    note = "Đã gửi EPC và auto confirm web session ${session.id}. Webapp sẽ tự chuyển sang confirmed.",
+                                    note = "Đã gửi tag lên web và tự hoàn tất gán cho lệnh ${session.id}.",
                                 )
                             }
 
@@ -196,7 +196,7 @@ class AssignTagViewModel(
                                 mutableResult.value = AssignResult.PartialSuccess(
                                     epc = epc,
                                     sku = session.itemCode,
-                                    message = "Web đã nhận EPC nhưng auto confirm chưa xong: ${confirmResult.message}",
+                                    message = "Web đã nhận tag nhưng chưa hoàn tất bước cuối: ${confirmResult.message}",
                                 )
                             }
                         }

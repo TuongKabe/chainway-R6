@@ -78,21 +78,21 @@ fun AssignTagScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            "Bridge webapp ↔ Android: app sẽ tự tìm session chờ và có thể auto confirm luôn sau khi quét.",
+            "Khi web đang chờ quét, máy sẽ tự nhận và tự gửi tag sau khi quét.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(checked = autoRefresh, onCheckedChange = vm::setAutoRefresh)
             Spacer(Modifier.width(8.dp))
-            Text("Tự làm mới session web mỗi vài giây")
+            Text("Tự lắng nghe lệnh chờ quét từ web")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { vm.refreshLatestAssignSession() }, enabled = !sessionLoading && !working, modifier = Modifier.weight(1f)) {
                 if (sessionLoading) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Nhận session web")
+                    Text("Kiểm tra lệnh từ web")
                 }
             }
             OutlinedButton(onClick = vm::clearAssignSession, enabled = assignSession != null, modifier = Modifier.weight(1f)) {
@@ -104,14 +104,14 @@ fun AssignTagScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text("Session web: ${assignSession?.id}", fontWeight = FontWeight.SemiBold)
-                Text("SKU: ${assignSession?.item?.itemName ?: assignSession?.itemCode ?: "—"}")
+                Text("Đang chờ quét cho: ${assignSession?.item?.itemName ?: assignSession?.itemCode ?: "—"}", fontWeight = FontWeight.SemiBold)
+                Text("Mã lệnh: ${assignSession?.id}")
                 Text("Kho: ${assignSession?.warehouse ?: "—"} · Vị trí: ${assignSession?.locationCode ?: "—"}")
                 Text(
                     when (assignSession?.status) {
-                        "confirmed" -> "Session này đã auto confirm xong. Webapp sẽ hiện confirmed."
-                        "scanned" -> "Session đang ở scanned. App sẽ thử auto confirm luôn sau khi gửi EPC."
-                        else -> "Đang chờ EPC từ thiết bị R6."
+                        "confirmed" -> "Đã gửi xong về web."
+                        "scanned" -> "Đã đọc tag, đang hoàn tất gửi về web."
+                        else -> "Sẵn sàng quét tag để gửi về web."
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
@@ -135,7 +135,7 @@ fun AssignTagScreen(
                 if (working) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Gửi EPC + auto confirm")
+                    Text("Quét xong, gửi về web")
                 }
             }
         }
@@ -224,7 +224,7 @@ private fun AssignResultDialog(
             val detail = buildString {
                 append(
                     if (sentToWebSession) {
-                        "Đã gửi EPC ${result.epc} cho SKU ${result.sku} sang web session."
+                        "Đã gửi tag ${result.epc} cho SKU ${result.sku} về web."
                     } else {
                         "Đã liên kết EPC ${result.epc} với SKU ${result.sku}."
                     }
@@ -232,7 +232,7 @@ private fun AssignResultDialog(
                 result.barcode?.takeIf { it.isNotBlank() }?.let { append("\nBarcode: $it") }
                 result.note?.takeIf { it.isNotBlank() }?.let { append("\n$it") }
             }
-            (if (sentToWebSession) "Đã gửi EPC sang web ✓" else "Gán tag thành công ✓") to detail
+            (if (sentToWebSession) "Đã gửi tag về web ✓" else "Gán tag thành công ✓") to detail
         }
 
         is AssignResult.PartialSuccess -> "Gán tag xong, bước sau chưa xong" to result.message
