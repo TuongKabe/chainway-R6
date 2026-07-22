@@ -310,7 +310,11 @@ fun AppShell(
                         profile = profile,
                     )
                 }
-                CountScreen(vm = countVm, expectedItems = expectedItems)
+                CountScreen(
+                    vm = countVm,
+                    expectedItems = expectedItems,
+                    locations = locations,
+                )
             }
             composable(AppDestinations.InOut.route) {
                 val inOutScope = rememberCoroutineScope()
