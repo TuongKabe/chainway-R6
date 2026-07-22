@@ -41,11 +41,13 @@ fun AssignTagScreen(
     vm: AssignTagViewModel,
     products: List<Product>,
     prefillEpc: String? = null,
+    onManageSku: (String) -> Unit = {},
 ) {
     val epc by vm.scannedEpc.collectAsState()
     val barcode by vm.barcode.collectAsState()
     val working by vm.working.collectAsState()
     val result by vm.result.collectAsState()
+    val conflict by vm.conflict.collectAsState()
     val assignSession by vm.assignSession.collectAsState()
     val sessionLoading by vm.sessionLoading.collectAsState()
     val autoRefresh by vm.autoRefresh.collectAsState()
@@ -68,6 +70,25 @@ fun AssignTagScreen(
 
     result?.let { r ->
         AssignResultDialog(result = r, onDismiss = vm::acknowledgeResult)
+    }
+
+    conflict?.let { current ->
+        AlertDialog(
+            onDismissRequest = vm::clearConflict,
+            title = { Text("Không thể gán tag") },
+            text = { Text(current.displayMessage()) },
+            confirmButton = {
+                Button(onClick = {
+                    onManageSku(current.ownerSku)
+                    vm.clearConflict()
+                }) {
+                    Text("Quản lý SKU đang giữ EPC")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::clearConflict) { Text("Đóng") }
+            },
+        )
     }
 
     Column(
@@ -125,19 +146,6 @@ fun AssignTagScreen(
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
         )
-        if (assignSession != null) {
-            Button(
-                onClick = vm::pushCurrentEpcToAssignSession,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !working && (epc ?: prefillEpc) != null,
-            ) {
-                if (working) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Text("Quét xong, gửi về web")
-                }
-            }
-        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(checked = structured, onCheckedChange = { structured = it })
             Spacer(Modifier.width(8.dp))
@@ -211,6 +219,9 @@ fun AssignTagScreen(
         }
     }
 }
+
+internal fun AssignConflict.displayMessage(): String =
+    "${ownerName ?: ownerSku} ($ownerSku) đang giữ EPC $epc. Dữ liệu hiện tại được giữ nguyên."
 
 @Composable
 private fun AssignResultDialog(

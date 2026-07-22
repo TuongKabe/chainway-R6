@@ -184,11 +184,6 @@ class AssignTagViewModel(
         mutableConflict.value = null
     }
 
-    fun pushCurrentEpcToAssignSession() {
-        val epc = mutableScannedEpc.value ?: return
-        scope.launch(start = CoroutineStart.UNDISPATCHED) { acceptScannedEpc(epc) }
-    }
-
     private suspend fun acceptScannedEpc(epc: String) {
         mutableScannedEpc.value = epc
         mutableDone.value = false

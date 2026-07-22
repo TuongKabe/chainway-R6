@@ -97,6 +97,26 @@ class ProductManagementViewModelTest {
     }
 
     @Test
+    fun selectProductWhenAvailable_opensEditorAfterRefresh() = runTest {
+        val repo = ProductSource(emptyList())
+        val vm = ProductManagementViewModel(
+            repo,
+            LocationSource(locations),
+            { WarehouseSyncResult.Success },
+            backgroundScope,
+        )
+
+        vm.selectProductWhenAvailable("SKU-1")
+        runCurrent()
+        assertNull(vm.editor.value)
+
+        repo.flow.value = products
+        runCurrent()
+
+        assertEquals("SKU-1", vm.editor.value?.sku)
+    }
+
+    @Test
     fun save_rejectsStaleShelfAndKeepsEditor() = runTest {
         val vm = ProductManagementViewModel(ProductSource(products), LocationSource(locations), { WarehouseSyncResult.Success }, backgroundScope)
         runCurrent()

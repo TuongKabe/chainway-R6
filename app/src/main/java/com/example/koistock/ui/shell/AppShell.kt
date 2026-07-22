@@ -114,6 +114,7 @@ fun AppShell(
     val snackbarHostState = remember { SnackbarHostState() }
     val shellScope = rememberCoroutineScope()
     var isSyncing by remember { mutableStateOf(false) }
+    var requestedWarehouseSku by remember { mutableStateOf<String?>(null) }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -351,6 +352,10 @@ fun AppShell(
                         syncAfterSave = warehouseSync::syncAndRefresh,
                     )
                 }
+                LaunchedEffect(requestedWarehouseSku, productManagementVm) {
+                    requestedWarehouseSku?.let(productManagementVm::selectProductWhenAvailable)
+                    requestedWarehouseSku = null
+                }
                 WarehouseManagementScreen(productVm = productManagementVm, zoneVm = zoneVm)
             }
             composable(AppDestinations.Assign.route) {
@@ -370,7 +375,14 @@ fun AppShell(
                         profile = profile,
                     )
                 }
-                AssignTagScreen(vm = assignVm, products = products)
+                AssignTagScreen(
+                    vm = assignVm,
+                    products = products,
+                    onManageSku = { sku ->
+                        requestedWarehouseSku = sku
+                        navController.navigate(AppDestinations.Warehouse.route)
+                    },
+                )
             }
             composable(AppDestinations.Putaway.route) {
                 val putawayScope = rememberCoroutineScope()
