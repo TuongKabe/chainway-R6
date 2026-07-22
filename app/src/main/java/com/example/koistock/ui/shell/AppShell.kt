@@ -33,6 +33,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.koistock.data.remote.HttpAssignSessionRepository
+import com.example.koistock.data.remote.HttpCountInventoryRepository
 import com.example.koistock.data.remote.HttpGsheetWriteRepository
 import com.example.koistock.data.remote.HttpLocationRepository
 import com.example.koistock.data.remote.HttpProductRepository
@@ -49,7 +50,6 @@ import com.example.koistock.device.ToneBeeper
 import com.example.koistock.device.ScanFunction
 import com.example.koistock.device.ScanProfile
 import com.example.koistock.device.ScanProfileStore
-import com.example.koistock.domain.ExpectedItem
 import com.example.koistock.ui.settings.ScanConfigScreen
 import com.example.koistock.ui.assign.AssignTagScreen
 import com.example.koistock.ui.assign.AssignTagViewModel
@@ -98,6 +98,7 @@ fun AppShell(
     val syncRepo = remember { HttpSyncRepository(api) }
     val gsheetWriteRepo = remember { HttpGsheetWriteRepository(api) }
     val assignSessionRepo = remember { HttpAssignSessionRepository(api) }
+    val countInventoryRepo = remember { HttpCountInventoryRepository(api) }
     val products by productRepo.observeAll().collectAsState(initial = emptyList())
     val locations by locationRepo.observeAll().collectAsState(initial = emptyList())
     val warehouseSync = remember {
@@ -107,10 +108,6 @@ fun AppShell(
             refreshLocations = locationRepo::refresh,
         )
     }
-    val expectedItems = remember(products) {
-        products.map { ExpectedItem(it.sku, it.name, it.quantity.toInt(), it.locationCode) }
-    }
-
     val snackbarHostState = remember { SnackbarHostState() }
     val shellScope = rememberCoroutineScope()
     var isSyncing by remember { mutableStateOf(false) }
@@ -309,11 +306,11 @@ fun AppShell(
                         now = { System.currentTimeMillis() },
                         scope = countScope,
                         profile = profile,
+                        countInventoryRepo = countInventoryRepo,
                     )
                 }
                 CountScreen(
                     vm = countVm,
-                    expectedItems = expectedItems,
                     locations = locations,
                 )
             }

@@ -18,26 +18,9 @@ data class CountRow(
     val unit: String,
     val locationCode: String,
     val status: CountStatus,
-) {
-    val counted: Int get() = scannedTagCount
-    val expected: Int get() = dbStockQty
-}
+)
 
 object CountReconciler {
-    @Deprecated("Use the scope-aware overload")
-    fun reconcile(
-        zone: String,
-        countedBySku: Map<String, Int>,
-        expected: List<ExpectedItem>,
-    ): List<CountRow> {
-        val scope = if (zone.isBlank()) {
-            CountScope.EntireWarehouse
-        } else {
-            CountScope.Location(zone, setOf(zone))
-        }
-        return reconcile(scope, countedBySku, expected, expected.mapTo(mutableSetOf(), ExpectedItem::sku))
-    }
-
     fun reconcile(
         scope: CountScope,
         countedBySku: Map<String, Int>,

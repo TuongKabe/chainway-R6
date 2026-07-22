@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +37,6 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.koistock.data.model.LocationNode
 import com.example.koistock.data.model.LocationType
 import com.example.koistock.data.model.TrackingMode
-import com.example.koistock.domain.ExpectedItem
 import com.example.koistock.ui.common.ScanTriggerDialog
 import com.example.koistock.util.shareCsv
 import kotlinx.coroutines.launch
@@ -47,7 +47,6 @@ internal fun toggleExpandedSku(currentSku: String?, tappedSku: String): String? 
 @Composable
 fun CountScreen(
     vm: CountViewModel,
-    expectedItems: List<ExpectedItem>,
     locations: List<LocationNode>,
 ) {
     val zone by vm.zone.collectAsState()
@@ -55,6 +54,9 @@ fun CountScreen(
     val scannedSkuRows by vm.scannedSkuRows.collectAsState()
     val rows by vm.rows.collectAsState()
     val isScanning by vm.isScanning.collectAsState()
+    val isReconciling by vm.isReconciling.collectAsState()
+    val reconcileMessage by vm.reconcileMessage.collectAsState()
+    val scopeLabel by vm.scopeLabel.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var zoneInput by remember(zone) { mutableStateOf(zone.orEmpty()) }
@@ -135,15 +137,14 @@ fun CountScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
                 scope.launch {
-                    vm.reconcile(
-                        expectedItems.filter {
-                            it.homeLocation == zoneInput ||
-                                it.homeLocation.startsWith(zoneInput.substringBefore('-'))
-                        },
-                    )
+                    vm.reconcile(locations)
                 }
-            }) {
-                Text("Đối chiếu")
+            }, enabled = !isReconciling) {
+                if (isReconciling) {
+                    CircularProgressIndicator(strokeWidth = 2.dp)
+                } else {
+                    Text("Đối chiếu")
+                }
             }
             Button(onClick = { scope.launch { vm.saveCount() } }, enabled = counted.isNotEmpty()) {
                 Text("Lưu count")
@@ -162,11 +163,19 @@ fun CountScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text("Kết quả đối chiếu", style = MaterialTheme.typography.titleMedium)
+                Text("Phạm vi: $scopeLabel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                reconcileMessage?.let { message ->
+                    Text(message, color = MaterialTheme.colorScheme.error)
+                }
                 if (rows.isEmpty()) {
                     Text("Chưa chạy đối chiếu.")
                 } else {
                     rows.forEach { row ->
-                        Text("${row.sku} · ${row.name} · Đếm ${row.counted}/${row.expected} · ${row.status}")
+                        Text("${row.sku} · ${row.name}")
+                        Text(
+                            "Đã quét ${row.scannedTagCount} tag · Tồn DB: ${row.dbStockQty} ${row.unit} · ${row.status}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
