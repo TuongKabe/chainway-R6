@@ -39,10 +39,13 @@ class CountReconcilerTest {
             mapOf("S1" to 1),
             emptyList(),
             setOf("S1"),
+            mapOf("S1" to CountInventoryItem("S1", "Áo khoác", "cái", com.example.koistock.data.model.TrackingMode.BULK)),
         ).single()
 
         assertEquals(CountStatus.MISPLACED, row.status)
         assertEquals("A", row.locationCode)
+        assertEquals("Áo khoác", row.name)
+        assertEquals("cái", row.unit)
     }
 
     @Test

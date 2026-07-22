@@ -1,6 +1,7 @@
 package com.example.koistock.domain
 
 import com.example.koistock.data.model.LocationNode
+import com.example.koistock.data.model.LocationType
 import com.example.koistock.data.model.TrackingMode
 import java.math.BigDecimal
 
@@ -36,6 +37,7 @@ data class CountInventorySnapshot(
     val scope: CountScope,
     val expected: List<ExpectedItem>,
     val skusWithStockAnywhere: Set<String>,
+    val itemsBySku: Map<String, CountInventoryItem> = emptyMap(),
 )
 
 interface CountInventoryRepository {
@@ -78,12 +80,17 @@ object CountInventoryCalculator {
             scope = scope,
             expected = expected,
             skusWithStockAnywhere = globalQtyBySku.filterValues { it > 0 }.keys,
+            itemsBySku = itemBySku,
         )
     }
 
     private fun resolveScope(code: String, locations: List<LocationNode>): CountScope {
         if (code.isBlank()) return CountScope.EntireWarehouse
-        require(locations.any { it.code == code }) { "Không tìm thấy khu/kệ: $code" }
+        val selected = locations.firstOrNull { it.code == code }
+            ?: throw IllegalArgumentException("Không tìm thấy khu/kệ: $code")
+        if (selected.type == LocationType.SHELF) {
+            return CountScope.Location(code, setOf(code))
+        }
 
         val included = mutableSetOf(code)
         var changed: Boolean

@@ -26,6 +26,7 @@ object CountReconciler {
         countedBySku: Map<String, Int>,
         expected: List<ExpectedItem>,
         skusWithStockAnywhere: Set<String>,
+        itemsBySku: Map<String, CountInventoryItem> = emptyMap(),
     ): List<CountRow> {
         val expectedBySku = expected.associateBy { it.sku }
         val locationCode = (scope as? CountScope.Location)?.code.orEmpty()
@@ -47,6 +48,7 @@ object CountReconciler {
 
         countedBySku.forEach { (sku, scannedTagCount) ->
             if (sku in expectedBySku) return@forEach
+            val item = itemsBySku[sku]
             val status = if (scope is CountScope.Location && sku in skusWithStockAnywhere) {
                 CountStatus.MISPLACED
             } else {
@@ -54,10 +56,10 @@ object CountReconciler {
             }
             rows += CountRow(
                 sku = sku,
-                name = sku,
+                name = item?.name ?: sku,
                 scannedTagCount = scannedTagCount,
                 dbStockQty = 0,
-                unit = "",
+                unit = item?.unit.orEmpty(),
                 locationCode = locationCode,
                 status = status,
             )

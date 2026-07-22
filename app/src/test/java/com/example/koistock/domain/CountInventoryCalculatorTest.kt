@@ -57,6 +57,20 @@ class CountInventoryCalculatorTest {
     }
 
     @Test
+    fun shelfDoesNotIncludeLegacyChildLocation() {
+        val legacyLocations = locations +
+            LocationNode("LEGACY-CHILD", "Dữ liệu cũ", LocationType.SHELF, parent = "SHELF-X")
+        val legacyBins = bins + CountBinStock("BULK-1", "LEGACY-CHILD", "99")
+
+        val result = CountInventoryCalculator.calculate(
+            "SHELF-X", legacyLocations, items, legacyBins, tags,
+        )
+
+        assertEquals(setOf("SHELF-X"), (result.scope as CountScope.Location).includedCodes)
+        assertEquals(4, result.expected.single { it.sku == "BULK-1" }.expectedQty)
+    }
+
+    @Test
     fun snapshotTracksSkusWithPositiveStockAnywhere() {
         val result = CountInventoryCalculator.calculate("SHELF-X", locations, items, bins, tags)
 

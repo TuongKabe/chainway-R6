@@ -44,6 +44,8 @@ import kotlinx.coroutines.launch
 internal fun toggleExpandedSku(currentSku: String?, tappedSku: String): String? =
     if (currentSku == tappedSku) null else tappedSku
 
+internal const val COUNT_LOCATION_HELP = "Để trống để đối chiếu Toàn khu"
+
 @Composable
 fun CountScreen(
     vm: CountViewModel,
@@ -100,7 +102,8 @@ fun CountScreen(
             },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Mã khu/kệ") },
-            placeholder = { Text("Ví dụ: A-03") },
+            placeholder = { Text("Để trống: Toàn khu") },
+            supportingText = { Text(COUNT_LOCATION_HELP) },
         )
         Button(
             onClick = { showScanDialog = true },

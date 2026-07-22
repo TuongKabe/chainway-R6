@@ -13,6 +13,7 @@ import com.example.koistock.fakes.FakeProductRepo
 import com.example.koistock.fakes.FakeTagRepo
 import com.example.koistock.fakes.FakeTransactionRepo
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -164,6 +165,30 @@ class CountViewModelTest {
 
         assertEquals(previousRows, vm.rows.value)
         assertTrue(vm.reconcileMessage.value.orEmpty().contains("offline"))
+        assertFalse(vm.isReconciling.value)
+        vm.clear()
+    }
+
+    @Test
+    fun inventoryCancellationIsRethrown() = runTest {
+        val inventoryRepo = object : CountInventoryRepository {
+            override suspend fun load(locationCode: String, locations: List<com.example.koistock.data.model.LocationNode>): CountInventorySnapshot {
+                throw CancellationException("screen closed")
+            }
+        }
+        val vm = CountViewModel(
+            FakeRfidReader(), FakeTagRepo(), FakeProductRepo(), FakeTransactionRepo(),
+            "d", { 0 }, this, countInventoryRepo = inventoryRepo,
+        )
+
+        val error = try {
+            vm.reconcile(emptyList())
+            throw AssertionError("Expected CancellationException")
+        } catch (error: CancellationException) {
+            error
+        }
+
+        assertEquals("screen closed", error.message)
         assertFalse(vm.isReconciling.value)
         vm.clear()
     }

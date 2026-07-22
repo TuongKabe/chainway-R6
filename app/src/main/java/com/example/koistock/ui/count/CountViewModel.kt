@@ -16,6 +16,7 @@ import com.example.koistock.domain.CountRow
 import com.example.koistock.domain.CsvExporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -143,13 +144,16 @@ class CountViewModel(
                 countedBySku = countedBySku.value,
                 expected = snapshot.expected,
                 skusWithStockAnywhere = snapshot.skusWithStockAnywhere,
+                itemsBySku = snapshot.itemsBySku,
             )
             mutableRows.value = reconciled
             mutableScopeLabel.value = when (val countScope = snapshot.scope) {
                 com.example.koistock.domain.CountScope.EntireWarehouse -> "Toàn khu"
                 is com.example.koistock.domain.CountScope.Location -> countScope.code
             }
-        } catch (error: Throwable) {
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
             mutableReconcileMessage.value = "Không tải được tồn DB: ${error.message ?: "Lỗi không xác định"}"
         } finally {
             mutableReconciling.value = false
