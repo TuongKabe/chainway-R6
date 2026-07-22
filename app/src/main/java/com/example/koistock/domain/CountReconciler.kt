@@ -7,6 +7,7 @@ data class ExpectedItem(
     val name: String,
     val expectedQty: Int,
     val homeLocation: String,
+    val unit: String = "",
 )
 
 data class CountRow(
