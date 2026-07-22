@@ -6,7 +6,7 @@ import java.util.Locale
 
 object CsvExporter {
     private const val BOM = "\uFEFF"
-    private const val HEADER = "khu,kệ,sku,tên,soLuongDem,kyVong,chenhLech,trangThai,thoiDiem"
+    private const val HEADER = "khu,kệ,sku,tên,soTagDaQuet,tonDb,donVi,trangThai,thoiDiem"
 
     fun toCsv(rows: List<CountRow>, atMillis: Long): String {
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(atMillis))
@@ -23,11 +23,11 @@ object CsvExporter {
                 append(',')
                 append(escape(row.name))
                 append(',')
-                append(row.counted)
+                append(row.scannedTagCount)
                 append(',')
-                append(row.expected)
+                append(row.dbStockQty)
                 append(',')
-                append(row.counted - row.expected)
+                append(escape(row.unit))
                 append(',')
                 append(row.status.name)
                 append(',')
