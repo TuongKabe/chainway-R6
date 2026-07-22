@@ -1,5 +1,6 @@
 package com.example.koistock.ui.count
 
+import com.example.koistock.data.model.Product
 import com.example.koistock.data.model.Transaction
 import com.example.koistock.data.model.TxType
 import com.example.koistock.data.remote.ProductRepo
@@ -23,6 +24,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+data class CountedSkuRow(
+    val product: Product,
+    val scannedTagCount: Int,
+)
+
 class CountViewModel(
     private val reader: RfidReader,
     private val tagRepo: TagRepo,
@@ -38,6 +44,9 @@ class CountViewModel(
 
     private val mutableCountedBySku = MutableStateFlow<Map<String, Int>>(emptyMap())
     val countedBySku: StateFlow<Map<String, Int>> = mutableCountedBySku.asStateFlow()
+
+    private val mutableScannedSkuRows = MutableStateFlow<List<CountedSkuRow>>(emptyList())
+    val scannedSkuRows: StateFlow<List<CountedSkuRow>> = mutableScannedSkuRows.asStateFlow()
 
     private val mutableRows = MutableStateFlow<List<CountRow>>(emptyList())
     val rows: StateFlow<List<CountRow>> = mutableRows.asStateFlow()
@@ -79,6 +88,7 @@ class CountViewModel(
     fun startScan() {
         seenEpcs.clear()
         mutableCountedBySku.value = emptyMap()
+        mutableScannedSkuRows.value = emptyList()
         reader.startInventory()
         mutableScanning.value = true
         scanJob?.cancel()
@@ -89,6 +99,11 @@ class CountViewModel(
                 val product = productRepo.getBySku(tag.sku) ?: return@collect
                 mutableCountedBySku.update { current ->
                     current + (product.sku to ((current[product.sku] ?: 0) + 1))
+                }
+                val count = mutableCountedBySku.value.getValue(product.sku)
+                mutableScannedSkuRows.update { rows ->
+                    (rows.filterNot { it.product.sku == product.sku } + CountedSkuRow(product, count))
+                        .sortedBy { it.product.sku }
                 }
             }
         }

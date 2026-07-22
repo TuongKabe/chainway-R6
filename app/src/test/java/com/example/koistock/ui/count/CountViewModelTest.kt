@@ -21,6 +21,61 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class CountViewModelTest {
     @Test
+    fun scan_exposesProductDetailsAndUniqueTagCount() = runTest {
+        val reader = FakeRfidReader()
+        val product = Product("S1", "Ao KOI", "cai", TrackingMode.SERIALIZED, 12, "A-03")
+        val vm = CountViewModel(
+            reader,
+            FakeTagRepo(
+                mutableMapOf(
+                    "KOI-S1-1" to TagMapping("KOI-S1-1", "S1"),
+                    "KOI-S1-2" to TagMapping("KOI-S1-2", "S1"),
+                ),
+            ),
+            FakeProductRepo(mutableMapOf("S1" to product)),
+            FakeTransactionRepo(),
+            "d",
+            { 0 },
+            this,
+        )
+        vm.startScan()
+        runCurrent()
+
+        reader.emitTag("KOI-S1-1")
+        reader.emitTag("KOI-S1-2")
+        reader.emitTag("KOI-S1-1")
+        advanceUntilIdle()
+
+        assertEquals(listOf(CountedSkuRow(product, 2)), vm.scannedSkuRows.value)
+        vm.clear()
+    }
+
+    @Test
+    fun startingNewScan_clearsResolvedRows() = runTest {
+        val reader = FakeRfidReader()
+        val product = Product("S1", "Ao KOI", "cai", TrackingMode.SERIALIZED, 12, "A-03")
+        val vm = CountViewModel(
+            reader,
+            FakeTagRepo(mutableMapOf("KOI-S1-1" to TagMapping("KOI-S1-1", "S1"))),
+            FakeProductRepo(mutableMapOf("S1" to product)),
+            FakeTransactionRepo(),
+            "d",
+            { 0 },
+            this,
+        )
+        vm.startScan()
+        runCurrent()
+        reader.emitTag("KOI-S1-1")
+        advanceUntilIdle()
+        vm.stopScan()
+
+        vm.startScan()
+
+        assertTrue(vm.scannedSkuRows.value.isEmpty())
+        vm.clear()
+    }
+
+    @Test
     fun scan_groupsBySku() = runTest {
         val reader = FakeRfidReader()
         val tags = FakeTagRepo(
