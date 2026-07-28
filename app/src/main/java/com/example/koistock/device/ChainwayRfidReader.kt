@@ -33,6 +33,7 @@ class ChainwayRfidReader(
 ) : RfidReader {
     private val appContext = context.applicationContext
     private val sdk = RFIDWithUHFBLE.getInstance()
+    private val configGate = VerifiedConfigGate()
 
     private val mutableConnectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     override val connectionState: StateFlow<ConnectionState> = mutableConnectionState.asStateFlow()
@@ -122,6 +123,7 @@ class ChainwayRfidReader(
                 ConnectionStatusCallback<Any> { status, _ ->
                 when (status) {
                     ConnectionStatus.CONNECTED -> {
+                        configGate.allowPending()
                         mutableConnectionState.value = ConnectionState.Connected(mac)
                         runCatching { sdk.setSupportRssi(true) }
                         // Áp cấu hình mặc định ngay khi kết nối; mỗi màn sẽ áp profile riêng khi mở.
@@ -130,6 +132,7 @@ class ChainwayRfidReader(
                     }
 
                     ConnectionStatus.DISCONNECTED -> {
+                        configGate.close()
                         mutableConnectionState.value = ConnectionState.Disconnected
                         if (cont.isActive) cont.resume(false)
                     }
@@ -150,14 +153,17 @@ class ChainwayRfidReader(
     }
 
     override fun disconnect() {
+        configGate.close()
         runCatching { sdk.disconnect() }
         mutableConnectionState.value = ConnectionState.Disconnected
     }
 
     override suspend fun scanSingle(): ScannedTag? =
-        runCatching { sdk.inventorySingleTag()?.toScannedTag() }.getOrNull()
+        if (!configGate.canScan) null
+        else runCatching { sdk.inventorySingleTag()?.toScannedTag() }.getOrNull()
 
     override suspend fun scanBurst(durationMs: Long): ScannedTag? {
+        if (!configGate.canScan) return null
         val bestRssiByEpc = HashMap<String, Int>()
         runCatching {
             sdk.setInventoryCallback(inventoryCallback)
@@ -179,23 +185,84 @@ class ChainwayRfidReader(
     override suspend fun getPower(): Int =
         runCatching { sdk.power }.getOrDefault(0)
 
-    override suspend fun applyScanConfig(profile: ScanProfile) {
+    override suspend fun readConfigSnapshot(): R6ConfigSnapshot {
+        val gen2 = runCatching { sdk.gen2 }
+        return R6ConfigSnapshot(
+            power = readback { sdk.power }.validating { it in 1..30 },
+            region = readback { sdk.frequencyMode }.mapping { code ->
+                R6Region.fromSdkCode(code) ?: error("Mã vùng không hỗ trợ: 0x${code.toString(16)}")
+            },
+            session = gen2.readback { it.querySession },
+            q = gen2.readback { it.startQ },
+            millerM = gen2.readback { it.queryM },
+        )
+    }
+
+    override suspend fun setRegion(region: R6Region): ConfigCommandResult =
+        command(ConfigField.REGION) { sdk.setFrequencyMode(region.sdkCode) }
+
+    override suspend fun applyScanConfig(
+        profile: ScanProfile,
+        expectedRegion: R6Region,
+    ): ConfigApplyResult {
         val p = profile.sanitized()
-        runCatching {
-            sdk.setEPCMode()
-            sdk.setPower(p.power)
-            val gen2 = sdk.gen2 ?: com.rscja.deviceapi.entity.Gen2Entity()
+        val commands = buildList {
+            add(command(ConfigField.READ_MODE) { sdk.setEPCMode() })
+            add(command(ConfigField.POWER) { sdk.setPower(p.power) })
+            val gen2 = runCatching { sdk.gen2 }.getOrNull()
+                ?: com.rscja.deviceapi.entity.Gen2Entity()
             gen2.querySession = p.session
-            gen2.queryTarget = 0        // Target A
+            gen2.queryTarget = 0
             gen2.startQ = p.q
-            gen2.queryM = p.millerM     // Miller: 0=FM0,1=M2,2=M4,3=M8
-            sdk.setGen2(gen2)
-            sdk.setTagFocus(p.tagFocus)
-            sdk.setFastID(p.fastId)
+            gen2.queryM = p.millerM
+            add(command(ConfigField.SESSION) { sdk.setGen2(gen2) })
+            add(command(ConfigField.TAG_FOCUS) { sdk.setTagFocus(p.tagFocus) })
+            add(command(ConfigField.FAST_ID) {
+                sdk.setFastID(p.readMode == ScanReadMode.EPC_AND_TID || p.fastId)
+            })
         }
+        return ConfigApplyResult(p, expectedRegion, commands, readConfigSnapshot()).also(configGate::record)
+    }
+
+    private inline fun command(field: ConfigField, block: () -> Boolean): ConfigCommandResult =
+        runCatching { block() }.fold(
+            onSuccess = { ConfigCommandResult(field, it, if (it) null else "SDK trả về false") },
+            onFailure = { ConfigCommandResult(field, false, it.message ?: it.javaClass.simpleName) },
+        )
+
+    private inline fun <T> readback(block: () -> T): Readback<T> =
+        runCatching(block).fold(
+            onSuccess = { Readback.Value(it) },
+            onFailure = { Readback.Failed(it.message ?: it.javaClass.simpleName) },
+        )
+
+    private inline fun <T, R> Result<T?>.readback(transform: (T) -> R): Readback<R> = fold(
+        onSuccess = { value ->
+            if (value == null) Readback.Failed("R6 không trả về Gen2")
+            else runCatching { transform(value) }.fold(
+                onSuccess = { Readback.Value(it) },
+                onFailure = { Readback.Failed(it.message ?: it.javaClass.simpleName) },
+            )
+        },
+        onFailure = { Readback.Failed(it.message ?: it.javaClass.simpleName) },
+    )
+
+    private inline fun <T> Readback<T>.validating(predicate: (T) -> Boolean): Readback<T> = when (this) {
+        is Readback.Value -> if (predicate(value)) this else Readback.Failed("Giá trị R6 không hợp lệ: $value")
+        else -> this
+    }
+
+    private inline fun <T, R> Readback<T>.mapping(transform: (T) -> R): Readback<R> = when (this) {
+        is Readback.Value -> runCatching { transform(value) }.fold(
+            onSuccess = { Readback.Value(it) },
+            onFailure = { Readback.Failed(it.message ?: it.javaClass.simpleName) },
+        )
+        is Readback.Failed -> this
+        Readback.Unsupported -> Readback.Unsupported
     }
 
     override fun startInventory() {
+        if (!configGate.canScan) return
         runCatching {
             sdk.setInventoryCallback(inventoryCallback)
             sdk.startInventoryTag()
@@ -210,6 +277,7 @@ class ChainwayRfidReader(
         runCatching { sdk.writeDataToEpc(oldEpc, newEpc) }.getOrDefault(false)
 
     override fun startLocate(targetEpc: String) {
+        if (!configGate.canScan) return
         runCatching { sdk.startLocation(appContext, targetEpc, 5, 0, locateCallback) }
     }
 

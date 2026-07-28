@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,12 +32,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.koistock.device.ConnectionState
 import com.example.koistock.device.ScanFunction
+import com.example.koistock.device.R6Region
+import com.example.koistock.device.Readback
 import com.example.koistock.ui.shell.AppDestinations
 
 @Composable
 fun SettingsScreen(
     connectionState: ConnectionState,
     baseUrl: String,
+    r6State: R6SettingsState,
+    onSelectRegion: (R6Region) -> Unit,
+    onRefreshR6: () -> Unit,
     onOpen: (String) -> Unit,
 ) {
     val connectionSummary = when (connectionState) {
@@ -59,6 +66,7 @@ fun SettingsScreen(
             subtitle = connectionSummary,
             onClick = { onOpen(AppDestinations.Pairing.route) },
         )
+        R6DeviceConfigCard(r6State, onSelectRegion, onRefreshR6)
         SettingsRow(
             icon = Icons.Filled.Memory,
             title = "Test phần cứng R6",
@@ -99,6 +107,44 @@ fun SettingsScreen(
             ) {
                 InfoLine("Backend API", baseUrl)
                 InfoLine("Kiến trúc", "App → Koi backend → PostgreSQL → Airflow → Google Sheet")
+            }
+        }
+    }
+}
+
+@Composable
+private fun R6DeviceConfigCard(
+    state: R6SettingsState,
+    onSelectRegion: (R6Region) -> Unit,
+    onRefresh: () -> Unit,
+) {
+    val actual = when (val value = state.snapshot?.region) {
+        is Readback.Value -> "${value.value.label} · ${value.value.bandLabel}"
+        is Readback.Failed -> "Không đọc được: ${value.message}"
+        Readback.Unsupported -> "Firmware không hỗ trợ đọc lại"
+        null -> "Chưa đọc từ máy"
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Vùng tần số chung R6", fontWeight = FontWeight.SemiBold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                R6Region.entries.forEach { region ->
+                    FilterChip(
+                        selected = state.desiredConfig.region == region,
+                        onClick = { onSelectRegion(region) },
+                        label = { Text(region.label) },
+                    )
+                }
+            }
+            InfoLine("App yêu cầu", "${state.desiredConfig.region.label} · ${state.desiredConfig.region.bandLabel}")
+            InfoLine("R6 thực tế", actual)
+            state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            OutlinedButton(onClick = onRefresh, enabled = state.connected && !state.loading) {
+                Text(if (state.loading) "Đang đọc…" else "Đọc lại từ máy")
             }
         }
     }

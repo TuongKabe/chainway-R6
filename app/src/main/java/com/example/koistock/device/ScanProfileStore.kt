@@ -23,7 +23,18 @@ class ScanProfileStore(
             tagFocus = prefs[tagFocusKey(function)] ?: def.tagFocus,
             fastId = prefs[fastIdKey(function)] ?: def.fastId,
             millerM = prefs[millerKey(function)] ?: def.millerM,
+            readMode = prefs[readModeKey(function)]
+                ?.let { runCatching { ScanReadMode.valueOf(it) }.getOrNull() }
+                ?: def.readMode,
         ).sanitized()
+    }
+
+    fun deviceConfig(): Flow<R6DeviceConfig> = dataStore.data.map { prefs ->
+        R6DeviceConfig(
+            region = prefs[regionKey]
+                ?.let { saved -> R6Region.entries.firstOrNull { it.name == saved } }
+                ?: R6Region.VIETNAM,
+        )
     }
 
     suspend fun save(function: ScanFunction, profile: ScanProfile) {
@@ -36,7 +47,12 @@ class ScanProfileStore(
             prefs[tagFocusKey(function)] = p.tagFocus
             prefs[fastIdKey(function)] = p.fastId
             prefs[millerKey(function)] = p.millerM
+            prefs[readModeKey(function)] = p.readMode.name
         }
+    }
+
+    suspend fun saveDeviceConfig(config: R6DeviceConfig) {
+        dataStore.edit { prefs -> prefs[regionKey] = config.region.name }
     }
 
     suspend fun reset(function: ScanFunction) = save(function, ScanProfile.default(function))
@@ -48,4 +64,6 @@ class ScanProfileStore(
     private fun tagFocusKey(f: ScanFunction) = booleanPreferencesKey("scan_${f.key}_tagfocus")
     private fun fastIdKey(f: ScanFunction) = booleanPreferencesKey("scan_${f.key}_fastid")
     private fun millerKey(f: ScanFunction) = intPreferencesKey("scan_${f.key}_miller")
+    private fun readModeKey(f: ScanFunction) = stringPreferencesKey("scan_${f.key}_read_mode")
+    private val regionKey = stringPreferencesKey("r6_region")
 }

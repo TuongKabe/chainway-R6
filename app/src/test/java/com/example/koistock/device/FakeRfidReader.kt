@@ -82,11 +82,44 @@ class FakeRfidReader : RfidReader {
     override suspend fun getPower(): Int = lastPower
 
     var lastAppliedProfile: ScanProfile? = null
+    var desiredRegion = R6Region.VIETNAM
+    var nextApplyResult: ConfigApplyResult? = null
+    var nextSnapshot: R6ConfigSnapshot? = null
 
-    override suspend fun applyScanConfig(profile: ScanProfile) {
+    override suspend fun readConfigSnapshot(): R6ConfigSnapshot =
+        nextSnapshot ?: snapshot(lastAppliedProfile ?: ScanProfile())
+
+    override suspend fun setRegion(region: R6Region): ConfigCommandResult {
+        desiredRegion = region
+        return ConfigCommandResult(ConfigField.REGION, true)
+    }
+
+    override suspend fun applyScanConfig(
+        profile: ScanProfile,
+        expectedRegion: R6Region,
+    ): ConfigApplyResult {
         lastAppliedProfile = profile
         lastPower = profile.power
+        return nextApplyResult ?: ConfigApplyResult(
+            requested = profile,
+            requestedRegion = expectedRegion,
+            commands = emptyList(),
+            snapshot = nextSnapshot ?: snapshot(profile, expectedRegion),
+        )
     }
+
+    private fun snapshot(
+        profile: ScanProfile,
+        region: R6Region = desiredRegion,
+    ) = R6ConfigSnapshot(
+        power = Readback.Value(profile.power),
+        region = Readback.Value(region),
+        session = Readback.Value(profile.session),
+        q = Readback.Value(profile.q),
+        millerM = Readback.Value(profile.millerM),
+        tagFocus = Readback.Value(profile.tagFocus),
+        fastId = Readback.Value(profile.fastId),
+    )
 
     override fun startInventory() {
         inventoryRunning = true

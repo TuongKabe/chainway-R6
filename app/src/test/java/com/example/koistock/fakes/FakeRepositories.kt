@@ -42,6 +42,10 @@ class FakeTagRepo(
         return items.values.filter { it.sku == sku }
     }
 
+    override suspend fun listActive(): List<TagMapping> {
+        return items.values.filter { it.status.equals("active", ignoreCase = true) }
+    }
+
     override suspend fun voidTag(epc: String) {
         items[epc]?.let { items[epc] = it.copy(status = "void", locationCode = null) }
     }

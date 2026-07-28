@@ -112,6 +112,9 @@ class HttpTagRepository(
     override suspend fun listBySku(sku: String): List<TagMapping> =
         api.getTagsByItem(sku).data.map { it.toTagMapping() }
 
+    override suspend fun listActive(): List<TagMapping> =
+        api.getActiveTags().data.map { it.toTagMapping() }
+
     override suspend fun voidTag(epc: String) {
         api.voidTag(VoidTagRequestDto(epc = epc))
     }

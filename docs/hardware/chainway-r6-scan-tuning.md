@@ -27,6 +27,17 @@ App gom sự kiện qua `TriggerPressTracker` → phát ra một luồng `trigge
 Đọc từ SDK `RFIDWithUHFBLE` (`DeviceAPI_ver20251103_release.aar`). App áp các thông số này qua
 `ChainwayRfidReader.applyScanConfig(profile)` mỗi khi mở màn chức năng, theo `ScanProfile` đã lưu.
 
+## Xác nhận cấu hình thực tế
+
+1. Kết nối R6.
+2. Mở **Cài đặt > Vùng tần số chung R6**.
+3. Chọn **Việt Nam · 918–923 MHz** và áp dụng.
+4. Xác nhận phần **R6 thực tế** trùng với giá trị app yêu cầu.
+5. Mở cấu hình từng chức năng, lưu profile và kiểm tra Power, Session, Q, RF Link đọc lại từ máy.
+6. Nếu app báo sai lệch ở Power, Region, Session hoặc Q, reader sẽ không bắt đầu lượt quét.
+
+Khoảng cách trên 26 m là kết quả thử nghiệm tối ưu với thẻ phù hợp và môi trường ít nhiễu. Công suất 30 dBm không bảo đảm mọi loại thẻ đều đạt khoảng cách đó.
+
 | Thông số | API SDK | Ý nghĩa | Khuyến nghị |
 |---|---|---|---|
 | **Công suất RF** | `setPower(1..30)` dBm | Knob lớn nhất. Cao = xa/nhiều thẻ; **quá cao → đọc nhầm thẻ lân cận, phản xạ** | Quét đơn: 12–20. Gom khối lượng: 26–30 |

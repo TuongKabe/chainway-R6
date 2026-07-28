@@ -76,7 +76,8 @@ class AssignTagViewModelTest {
         advanceUntilIdle()
 
         assertEquals("E2000TRIGGER", vm.scannedEpc.value)
-        assertEquals(1, reader.singleScanCount)
+        assertEquals(1, reader.burstScanCount)
+        assertEquals(0, reader.singleScanCount)
     }
 
     @Test
@@ -237,6 +238,7 @@ class AssignTagViewModelTest {
     private class ThrowingTagRepo : TagRepo {
         override suspend fun getByEpc(epc: String): TagMapping? = error("verification offline")
         override suspend fun listBySku(sku: String): List<TagMapping> = error("verification offline")
+        override suspend fun listActive(): List<TagMapping> = error("verification offline")
         override suspend fun upsert(tag: TagMapping) = Unit
         override suspend fun voidTag(epc: String) = Unit
     }

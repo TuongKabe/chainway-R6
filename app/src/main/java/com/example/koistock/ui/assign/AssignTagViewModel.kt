@@ -96,6 +96,8 @@ class AssignTagViewModel(
     private var holdActive = false
     private var sessionPollJob: Job? = null
 
+    private val singleScanDurationMs = 600L
+
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) { reader.applyScanConfig(profile) }
         triggerJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -154,7 +156,7 @@ class AssignTagViewModel(
 
     fun scanBlank() {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            val epc = reader.scanSingle()?.epc
+            val epc = reader.scanBurst(singleScanDurationMs)?.epc
             if (epc == null) {
                 mutableScannedEpc.value = null
                 mutableDone.value = false
