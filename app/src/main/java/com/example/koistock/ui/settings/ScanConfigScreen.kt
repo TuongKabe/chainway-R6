@@ -29,12 +29,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.koistock.device.ScanFunction
 import com.example.koistock.device.ScanProfile
+import com.example.koistock.device.ScanReadMode
 import com.example.koistock.device.TriggerMode
+import com.example.koistock.device.R6ConfigSnapshot
+import com.example.koistock.device.Readback
 
 @Composable
 fun ScanConfigScreen(
     function: ScanFunction,
     profile: ScanProfile,
+    snapshot: R6ConfigSnapshot?,
+    statusMessage: String?,
+    onRefresh: () -> Unit,
     onSave: (ScanProfile) -> Unit,
     onResetDefault: () -> Unit,
 ) {
@@ -54,6 +60,19 @@ fun ScanConfigScreen(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
         )
+
+        ConfigCard("R6 thực tế") {
+            if (snapshot == null) {
+                Text("Chưa đọc cấu hình từ máy")
+            } else {
+                Text("Công suất: ${snapshot.power.display("dBm")}")
+                Text("Session: ${snapshot.session.display(prefix = "S")}")
+                Text("Q: ${snapshot.q.display()}")
+                Text("Miller: ${snapshot.millerM.display()}")
+            }
+            statusMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            OutlinedButton(onClick = onRefresh) { Text("Đọc lại từ máy") }
+        }
 
         ConfigCard("Chế độ cò") {
             ChipRow(
@@ -136,13 +155,28 @@ fun ScanConfigScreen(
                 checked = draft.tagFocus,
                 onChange = { draft = draft.copy(tagFocus = it) },
             )
-            SwitchRow(
-                label = "FastID",
-                hint = "Đọc kèm TID (chậm hơn). Tắt khi chỉ cần EPC.",
-                checked = draft.fastId,
-                onChange = { draft = draft.copy(fastId = it) },
+            ChipRow(
+                options = listOf(
+                    ScanReadMode.EPC to "Chỉ EPC",
+                    ScanReadMode.EPC_AND_TID to "EPC + TID",
+                ),
+                selected = draft.readMode,
+                onSelect = { mode ->
+                    draft = draft.copy(readMode = mode, fastId = mode == ScanReadMode.EPC_AND_TID)
+                },
+            )
+            Text(
+                "EPC + TID dùng FastID và có thể làm tốc độ quét chậm hơn.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        Text(
+            "Khoảng cách trên 26 m là kết quả thử nghiệm tối ưu với thẻ phù hợp; 30 dBm không bảo đảm mọi thẻ đạt khoảng cách này.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(
@@ -160,6 +194,15 @@ fun ScanConfigScreen(
             }
         }
     }
+}
+
+private fun <T> Readback<T>.display(
+    suffix: String = "",
+    prefix: String = "",
+): String = when (this) {
+    is Readback.Value -> "$prefix$value${if (suffix.isBlank()) "" else " $suffix"}"
+    is Readback.Failed -> "Không đọc được: $message"
+    Readback.Unsupported -> "R6 không hỗ trợ đọc lại"
 }
 
 @Composable

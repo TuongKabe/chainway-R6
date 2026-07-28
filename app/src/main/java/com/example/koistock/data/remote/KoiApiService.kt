@@ -153,6 +153,9 @@ data class AssignSessionConfirmRequestDto(
 interface KoiApiService {
     @GET("api/items")
     suspend fun getItems(): ApiEnvelope<List<ItemDto>>
+    @GET("api/items")
+    suspend fun searchItems(@Query("q") query: String, @Query("limit") limit: Int = 50): ApiEnvelope<List<ItemDto>>
+
 
     @GET("api/items/{code}")
     suspend fun getItem(@Path("code") code: String): ApiEnvelope<ItemDto>
@@ -165,6 +168,9 @@ interface KoiApiService {
 
     @GET("api/epc-tags")
     suspend fun getTagsByItem(@Query("itemCode") itemCode: String): ApiEnvelope<List<EpcTagDto>>
+
+    @GET("api/epc-tags")
+    suspend fun getActiveTags(@Query("status") status: String = "active"): ApiEnvelope<List<EpcTagDto>>
 
     @POST("api/epc-tags")
     suspend fun upsertTag(@Body body: EpcTagDto): ApiEnvelope<EpcTagDto>

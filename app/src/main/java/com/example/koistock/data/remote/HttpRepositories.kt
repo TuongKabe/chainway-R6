@@ -92,10 +92,8 @@ class HttpTagRepository(
 ) : TagRepo {
     override suspend fun getByEpc(epc: String): TagMapping? = try {
         api.getTag(epc).data.toTagMapping()
-    } catch (_: HttpException) {
-        null
-    } catch (_: IOException) {
-        null
+    } catch (error: HttpException) {
+        if (error.code() == 404) null else throw error
     }
 
     override suspend fun upsert(tag: TagMapping) {
@@ -112,7 +110,10 @@ class HttpTagRepository(
     }
 
     override suspend fun listBySku(sku: String): List<TagMapping> =
-        runCatching { api.getTagsByItem(sku).data.map { it.toTagMapping() } }.getOrDefault(emptyList())
+        api.getTagsByItem(sku).data.map { it.toTagMapping() }
+
+    override suspend fun listActive(): List<TagMapping> =
+        api.getActiveTags().data.map { it.toTagMapping() }
 
     override suspend fun voidTag(epc: String) {
         api.voidTag(VoidTagRequestDto(epc = epc))

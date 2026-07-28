@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
             }
 
             KOIStockTheme(darkTheme = false) {
-                AppShell(vm, reader, scanProfileStore)
+                AppShell(vm, reader, scanProfileStore, dataStore)
             }
         }
     }

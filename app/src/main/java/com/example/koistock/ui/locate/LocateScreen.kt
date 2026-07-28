@@ -48,7 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.koistock.data.model.Product
 import com.example.koistock.data.model.TagMapping
-import com.example.koistock.data.remote.TagRepo
+import com.example.koistock.data.remote.LocatableProduct
 import com.example.koistock.ui.theme.ElectricBlue
 import com.example.koistock.ui.theme.Tangerine
 import com.example.koistock.ui.theme.VividGreen
@@ -56,21 +56,49 @@ import com.example.koistock.ui.theme.VividGreen
 @Composable
 fun LocateScreen(
     vm: LocateViewModel,
-    products: List<Product>,
-    tagRepo: TagRepo,
     isConnected: Boolean,
     onOpenPairing: () -> Unit,
 ) {
+    val catalogState by vm.catalogState.collectAsState()
     var selectedSku by rememberSaveable { mutableStateOf<String?>(null) }
-    val selected = remember(selectedSku, products) { products.firstOrNull { it.sku == selectedSku } }
+    val catalog = (catalogState as? LocateCatalogState.Ready)?.items.orEmpty()
+    val selected = remember(selectedSku, catalog) {
+        catalog.firstOrNull { it.product.sku == selectedSku }
+    }
+
+    LaunchedEffect(vm) { vm.loadCatalog() }
 
     if (selected == null) {
-        ProductPicker(products = products, onSelect = { selectedSku = it.sku })
+        when (val state = catalogState) {
+            LocateCatalogState.Loading -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) { CircularProgressIndicator() }
+
+            is LocateCatalogState.Error -> Column(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(state.message, color = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = vm::loadCatalog) { Text("Thử lại") }
+            }
+
+            is LocateCatalogState.Ready -> ProductPicker(
+                products = state.items,
+                refreshing = state.refreshing,
+                warning = state.warning,
+                onRetry = vm::loadCatalog,
+                onFindExactSku = vm::findExactSku,
+                onSelect = { selectedSku = it.product.sku },
+            )
+        }
     } else {
         LocatePhase(
             vm = vm,
-            product = selected,
-            tagRepo = tagRepo,
+            product = selected.product,
+            tags = selected.activeTags,
             isConnected = isConnected,
             onChangeProduct = {
                 vm.stop()
@@ -83,18 +111,16 @@ fun LocateScreen(
 
 @Composable
 private fun ProductPicker(
-    products: List<Product>,
-    onSelect: (Product) -> Unit,
+    products: List<LocatableProduct>,
+    refreshing: Boolean,
+    warning: String?,
+    onRetry: () -> Unit,
+    onFindExactSku: (String) -> Unit,
+    onSelect: (LocatableProduct) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val filtered = remember(query, products) {
-        if (query.isBlank()) {
-            products
-        } else {
-            products.filter {
-                it.name.contains(query, ignoreCase = true) || it.sku.contains(query, ignoreCase = true)
-            }
-        }
+        filterLocatableProducts(products, query)
     }
 
     Column(
@@ -103,6 +129,13 @@ private fun ProductPicker(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (refreshing) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        warning?.let {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(it, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = onRetry) { Text("Thử lại") }
+            }
+        }
         Text("Chọn sản phẩm cần định vị", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         OutlinedTextField(
             value = query,
@@ -110,29 +143,44 @@ private fun ProductPicker(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                IconButton(
+                    onClick = { onFindExactSku(query) },
+                    enabled = query.isNotBlank() && !refreshing,
+                ) { Icon(Icons.Filled.Search, contentDescription = "Tìm chính xác SKU trên máy chủ") }
+            },
             placeholder = { Text("Tìm theo tên hoặc SKU") },
         )
+        OutlinedButton(
+            onClick = { onFindExactSku(query) },
+            enabled = query.isNotBlank() && !refreshing,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (refreshing) "Đang tải dữ liệu EPC…" else "Tìm SKU/EPC trên máy chủ")
+        }
         if (filtered.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    if (products.isEmpty()) "Chưa có dữ liệu sản phẩm. Hãy đồng bộ ở trang Tổng quan." else "Không tìm thấy sản phẩm phù hợp.",
+                    if (products.isEmpty()) "Chưa có SKU nào được gán tag active." else "Không tìm thấy sản phẩm phù hợp.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(filtered, key = { it.sku }) { product ->
+                items(filtered, key = { it.product.sku }) { item ->
+                    val product = item.product
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        onClick = { onSelect(product) },
+                        onClick = { onSelect(item) },
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(product.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                            val firstTag = item.activeTags.first()
                             Text(
-                                "SKU ${product.sku}" + product.locationCode.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty(),
+                                "SKU ${product.sku} · Kho ${warehouseText(firstTag)} · Vị trí ${positionText(firstTag)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -148,7 +196,7 @@ private fun ProductPicker(
 private fun LocatePhase(
     vm: LocateViewModel,
     product: Product,
-    tagRepo: TagRepo,
+    tags: List<TagMapping>,
     isConnected: Boolean,
     onChangeProduct: () -> Unit,
     onOpenPairing: () -> Unit,
@@ -160,16 +208,9 @@ private fun LocatePhase(
     val lastSeenEpc by vm.lastSeenEpc.collectAsState()
     val lastRawRssi by vm.lastRawRssi.collectAsState()
 
-    var tags by remember(product.sku) { mutableStateOf<List<TagMapping>?>(null) }
-    var selectedEpc by rememberSaveable(product.sku) { mutableStateOf<String?>(null) }
+    var selectedEpc by rememberSaveable(product.sku) { mutableStateOf(tags.firstOrNull()?.epc) }
+    val selectedTag = tags.firstOrNull { it.epc == selectedEpc }
     var showHelp by remember { mutableStateOf(false) }
-
-    // Tải danh sách EPC thật đã gán cho SKU này.
-    LaunchedEffect(product.sku) {
-        val loaded = tagRepo.listBySku(product.sku).filter { it.status == "active" }
-        tags = loaded
-        selectedEpc = loaded.firstOrNull()?.epc
-    }
 
     // Đồng bộ tag đang chọn để cò trên R6 có thể bắt đầu dò.
     LaunchedEffect(selectedEpc) {
@@ -212,6 +253,18 @@ private fun LocatePhase(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    selectedTag?.let { tag ->
+                        Text(
+                            "Kho: ${warehouseText(tag)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "Vị trí: ${positionText(tag)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 IconButton(onClick = { showHelp = true }) {
                     Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Hướng dẫn dò")
@@ -222,17 +275,9 @@ private fun LocatePhase(
         when {
             !isConnected -> ConnectBanner(onOpenPairing = onOpenPairing)
 
-            tags == null -> Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-
-            tags.isNullOrEmpty() -> InfoBanner(
-                "Sản phẩm này chưa có tag EPC nào được gán. Hãy gán tag trước khi định vị.",
-            )
-
             else -> {
                 TagSelector(
-                    tags = tags.orEmpty(),
+                    tags = tags,
                     selectedEpc = selectedEpc,
                     enabled = !isLocating,
                     onSelect = { selectedEpc = it },
@@ -413,6 +458,16 @@ private fun TagSelector(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        Text(
+                            "Kho: ${warehouseText(tag)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "Vị trí: ${positionText(tag)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -435,21 +490,6 @@ private fun ConnectBanner(onOpenPairing: () -> Unit) {
             )
             Button(onClick = onOpenPairing) { Text("Kết nối R6") }
         }
-    }
-}
-
-@Composable
-private fun InfoBanner(message: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Text(
-            message,
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyMedium,
-        )
     }
 }
 

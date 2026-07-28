@@ -19,6 +19,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,14 +45,17 @@ fun AssignTagScreen(
     vm: AssignTagViewModel,
     products: List<Product>,
     prefillEpc: String? = null,
+    onManageSku: (String) -> Unit = {},
 ) {
     val epc by vm.scannedEpc.collectAsState()
     val barcode by vm.barcode.collectAsState()
     val working by vm.working.collectAsState()
     val result by vm.result.collectAsState()
+    val conflict by vm.conflict.collectAsState()
     val assignSession by vm.assignSession.collectAsState()
     val sessionLoading by vm.sessionLoading.collectAsState()
     val autoRefresh by vm.autoRefresh.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
     var structured by remember { mutableStateOf(false) }
     var selectedSku by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
@@ -66,16 +73,50 @@ fun AssignTagScreen(
         onDispose { vm.clear() }
     }
 
-    result?.let { r ->
+    LaunchedEffect(result) {
+        (result as? AssignResult.Success)?.let { success ->
+            vm.acknowledgeResult()
+            snackbarHostState.showSnackbar(
+                message = success.snackbarMessage(),
+                duration = SnackbarDuration.Short,
+            )
+        }
+    }
+
+    result?.takeIf { it.requiresDialog() }?.let { r ->
         AssignResultDialog(result = r, onDismiss = vm::acknowledgeResult)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    conflict?.let { current ->
+        AlertDialog(
+            onDismissRequest = vm::clearConflict,
+            title = { Text("Không thể gán tag") },
+            text = { Text(current.displayMessage()) },
+            confirmButton = {
+                Button(onClick = {
+                    onManageSku(current.ownerSku)
+                    vm.clearConflict()
+                }) {
+                    Text("Quản lý SKU đang giữ EPC")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::clearConflict) { Text("Đóng") }
+            },
+        )
+    }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
         Text(
             "Khi web đang chờ quét, máy sẽ tự nhận và tự gửi tag sau khi quét.",
             style = MaterialTheme.typography.bodyMedium,
@@ -125,19 +166,6 @@ fun AssignTagScreen(
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
         )
-        if (assignSession != null) {
-            Button(
-                onClick = vm::pushCurrentEpcToAssignSession,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !working && (epc ?: prefillEpc) != null,
-            ) {
-                if (working) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                } else {
-                    Text("Quét xong, gửi về web")
-                }
-            }
-        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(checked = structured, onCheckedChange = { structured = it })
             Spacer(Modifier.width(8.dp))
@@ -209,8 +237,21 @@ fun AssignTagScreen(
                 }
             }
         }
+        }
     }
 }
+
+internal fun AssignConflict.displayMessage(): String =
+    "${ownerName ?: ownerSku} ($ownerSku) đang giữ EPC $epc. Dữ liệu hiện tại được giữ nguyên."
+
+internal fun AssignResult.Success.snackbarMessage(): String =
+    if (note?.contains("web", ignoreCase = true) == true) {
+        "Đã gửi EPC $epc cho SKU $sku về web"
+    } else {
+        "Đã gán EPC $epc cho SKU $sku"
+    }
+
+internal fun AssignResult.requiresDialog(): Boolean = this !is AssignResult.Success
 
 @Composable
 private fun AssignResultDialog(

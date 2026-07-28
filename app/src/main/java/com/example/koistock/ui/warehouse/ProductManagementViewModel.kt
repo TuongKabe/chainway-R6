@@ -13,7 +13,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 enum class StockFilter { ALL, IN_STOCK, OUT_OF_STOCK }
 
@@ -57,7 +59,20 @@ class ProductManagementViewModel(
 
     private val mutableEditor = MutableStateFlow<ProductEditorState?>(null)
     val editor: StateFlow<ProductEditorState?> = mutableEditor.asStateFlow()
+    private val requestedSku = MutableStateFlow<String?>(null)
     private var originalProduct: Product? = null
+
+    init {
+        scope.launch {
+            combine(products, requestedSku) { items, sku ->
+                items.firstOrNull { it.sku == sku }
+            }.filterNotNull().collect { product ->
+                originalProduct = product
+                resetEditor()
+                requestedSku.value = null
+            }
+        }
+    }
 
     val availableUnits: StateFlow<List<String>> = products
         .combine(mutableFilters) { items, _ -> items.map { it.unit }.filter { it.isNotBlank() }.distinct().sorted() }
@@ -106,6 +121,10 @@ class ProductManagementViewModel(
     fun selectProduct(sku: String) {
         originalProduct = products.value.firstOrNull { it.sku == sku }
         resetEditor()
+    }
+
+    fun selectProductWhenAvailable(sku: String) {
+        requestedSku.value = sku
     }
 
     fun closeEditor() {

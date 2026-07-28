@@ -9,6 +9,7 @@ interface TagRepo {
     suspend fun getByEpc(epc: String): TagMapping?
     suspend fun upsert(tag: TagMapping)
     suspend fun listBySku(sku: String): List<TagMapping>
+    suspend fun listActive(): List<TagMapping>
     suspend fun voidTag(epc: String)
 }
 
@@ -30,6 +31,15 @@ class TagRepository(
     override suspend fun listBySku(sku: String): List<TagMapping> {
         return collection
             .whereEqualTo("sku", sku)
+            .get()
+            .await()
+            .documents
+            .mapNotNull { doc -> doc.data?.let { TagMapping.fromMap(doc.id, it) } }
+    }
+
+    override suspend fun listActive(): List<TagMapping> {
+        return collection
+            .whereEqualTo("status", "active")
             .get()
             .await()
             .documents

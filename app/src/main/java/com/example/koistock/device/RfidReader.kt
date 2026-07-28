@@ -36,7 +36,12 @@ interface RfidReader {
     suspend fun getPower(): Int
 
     /** Áp toàn bộ thông số Chainway theo [ScanProfile] (công suất, session, Q, TagFocus, FastID, Miller). */
-    suspend fun applyScanConfig(profile: ScanProfile)
+    suspend fun readConfigSnapshot(): R6ConfigSnapshot
+    suspend fun setRegion(region: R6Region): ConfigCommandResult
+    suspend fun applyScanConfig(
+        profile: ScanProfile,
+        expectedRegion: R6Region = R6Region.VIETNAM,
+    ): ConfigApplyResult
 
     fun startLocate(targetEpc: String)
     fun stopLocate()

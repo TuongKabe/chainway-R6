@@ -7,6 +7,8 @@ package com.example.koistock.device
  */
 enum class TriggerMode { SINGLE, CONTINUOUS }
 
+enum class ScanReadMode { EPC, EPC_AND_TID }
+
 /** Các chức năng có quét RFID, mỗi chức năng có cấu hình riêng. */
 enum class ScanFunction(val key: String, val label: String) {
     LOOKUP("lookup", "Tra cứu"),
@@ -32,6 +34,7 @@ data class ScanProfile(
     val tagFocus: Boolean = false,
     val fastId: Boolean = false,
     val millerM: Int = 0,
+    val readMode: ScanReadMode = ScanReadMode.EPC,
 ) {
     fun sanitized(): ScanProfile = copy(
         power = power.coerceIn(1, 30),

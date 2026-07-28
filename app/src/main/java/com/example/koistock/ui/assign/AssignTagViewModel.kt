@@ -40,6 +40,18 @@ sealed interface AssignResult {
     data class Error(val message: String) : AssignResult
 }
 
+enum class AssignConflictReason {
+    EPC_OWNED_BY_OTHER_SKU,
+    SKU_ALREADY_HAS_OTHER_EPC,
+}
+
+data class AssignConflict(
+    val reason: AssignConflictReason,
+    val ownerSku: String,
+    val ownerName: String?,
+    val epc: String,
+)
+
 class AssignTagViewModel(
     private val reader: RfidReader,
     private val tagRepo: TagRepo,
@@ -67,6 +79,9 @@ class AssignTagViewModel(
     private val mutableResult = MutableStateFlow<AssignResult?>(null)
     val result: StateFlow<AssignResult?> = mutableResult.asStateFlow()
 
+    private val mutableConflict = MutableStateFlow<AssignConflict?>(null)
+    val conflict: StateFlow<AssignConflict?> = mutableConflict.asStateFlow()
+
     private val mutableAssignSession = MutableStateFlow<AssignSessionSnapshot?>(null)
     val assignSession: StateFlow<AssignSessionSnapshot?> = mutableAssignSession.asStateFlow()
 
@@ -80,6 +95,8 @@ class AssignTagViewModel(
     private var holdJob: Job? = null
     private var holdActive = false
     private var sessionPollJob: Job? = null
+
+    private val singleScanDurationMs = 600L
 
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) { reader.applyScanConfig(profile) }
@@ -102,8 +119,7 @@ class AssignTagViewModel(
             while (true) {
                 val epc = reader.scanSingle()?.epc
                 if (epc != null) {
-                    mutableScannedEpc.value = epc
-                    mutableDone.value = false
+                    acceptScannedEpc(epc)
                 }
             }
         }
@@ -140,11 +156,13 @@ class AssignTagViewModel(
 
     fun scanBlank() {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            val epc = reader.scanSingle()?.epc
-            mutableScannedEpc.value = epc
-            mutableDone.value = false
+            val epc = reader.scanBurst(singleScanDurationMs)?.epc
             if (epc == null) {
+                mutableScannedEpc.value = null
+                mutableDone.value = false
                 mutableResult.value = AssignResult.Error("Không đọc được tag. Đưa tag lại gần đầu đọc rồi thử lại.")
+            } else {
+                acceptScannedEpc(epc)
             }
         }
     }
@@ -164,50 +182,75 @@ class AssignTagViewModel(
         mutableAssignSession.value = null
     }
 
-    fun pushCurrentEpcToAssignSession() {
-        scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            val session = mutableAssignSession.value
-            val epc = mutableScannedEpc.value
-            if (session == null) {
-                mutableResult.value = AssignResult.Error("Chưa có web session nào đang chờ. Hãy bấm Nhận session web trước.")
-                return@launch
-            }
-            if (epc.isNullOrBlank()) {
-                mutableResult.value = AssignResult.Error("Chưa có EPC vừa quét để gửi sang web session.")
-                return@launch
-            }
-            mutableWorking.value = true
-            try {
-                when (val scanResult = assignSessionRepo.submitScan(session.id, epc, serialNo = null)) {
-                    is AssignSessionActionResult.Success -> {
-                        when (val confirmResult = assignSessionRepo.confirm(session.id)) {
-                            is AssignSessionActionResult.Success -> {
-                                mutableAssignSession.value = confirmResult.session
-                                reader.beep()
-                                mutableResult.value = AssignResult.Success(
-                                    epc = epc,
-                                    sku = session.itemCode,
-                                    note = "Đã gửi tag lên web và tự hoàn tất gán cho lệnh ${session.id}.",
-                                )
-                            }
+    fun clearConflict() {
+        mutableConflict.value = null
+    }
 
-                            is AssignSessionActionResult.Error -> {
-                                mutableAssignSession.value = scanResult.session
-                                mutableResult.value = AssignResult.PartialSuccess(
-                                    epc = epc,
-                                    sku = session.itemCode,
-                                    message = "Web đã nhận tag nhưng chưa hoàn tất bước cuối: ${confirmResult.message}",
-                                )
-                            }
-                        }
+    private suspend fun acceptScannedEpc(epc: String) {
+        mutableScannedEpc.value = epc
+        mutableDone.value = false
+        val session = mutableAssignSession.value ?: return
+        if (mutableWorking.value) return
+        mutableWorking.value = true
+        mutableConflict.value = null
+        try {
+            val epcMapping = tagRepo.getByEpc(epc)?.takeIf { it.status == "active" }
+            val skuMappings = tagRepo.listBySku(session.itemCode).filter { it.status == "active" }
+            val conflictingMapping = when {
+                epcMapping != null && epcMapping.sku != session.itemCode -> epcMapping
+                else -> skuMappings.firstOrNull { it.epc != epc }
+            }
+            if (conflictingMapping != null) {
+                val owner = runCatching { productRepo.getBySku(conflictingMapping.sku) }.getOrNull()
+                mutableConflict.value = AssignConflict(
+                    reason = if (epcMapping != null && epcMapping.sku != session.itemCode) {
+                        AssignConflictReason.EPC_OWNED_BY_OTHER_SKU
+                    } else {
+                        AssignConflictReason.SKU_ALREADY_HAS_OTHER_EPC
+                    },
+                    ownerSku = conflictingMapping.sku,
+                    ownerName = owner?.name,
+                    epc = conflictingMapping.epc,
+                )
+                return
+            }
+            completeWebSession(session, epc)
+        } catch (failure: Exception) {
+            mutableResult.value = AssignResult.Error(
+                "Không thể kiểm tra liên kết EPC/SKU: ${failure.message ?: "lỗi kết nối"}",
+            )
+        } finally {
+            mutableWorking.value = false
+        }
+    }
+
+    private suspend fun completeWebSession(session: AssignSessionSnapshot, epc: String) {
+        when (val scanResult = assignSessionRepo.submitScan(session.id, epc, serialNo = null)) {
+            is AssignSessionActionResult.Success -> {
+                when (val confirmResult = assignSessionRepo.confirm(session.id)) {
+                    is AssignSessionActionResult.Success -> {
+                        mutableAssignSession.value = confirmResult.session
+                        reader.beep()
+                        mutableResult.value = AssignResult.Success(
+                            epc = epc,
+                            sku = session.itemCode,
+                            note = "Đã gửi tag lên web và tự hoàn tất gán cho lệnh ${session.id}.",
+                        )
                     }
 
                     is AssignSessionActionResult.Error -> {
-                        mutableResult.value = AssignResult.Error(scanResult.message)
+                        mutableAssignSession.value = scanResult.session
+                        mutableResult.value = AssignResult.PartialSuccess(
+                            epc = epc,
+                            sku = session.itemCode,
+                            message = "Web đã nhận tag nhưng chưa hoàn tất bước cuối: ${confirmResult.message}",
+                        )
                     }
                 }
-            } finally {
-                mutableWorking.value = false
+            }
+
+            is AssignSessionActionResult.Error -> {
+                mutableResult.value = AssignResult.Error(scanResult.message)
             }
         }
     }

@@ -9,6 +9,8 @@ data class TagMapping(
     val updatedAt: Long = 0,
     val origin: String = "app",
     val syncRev: Long = 0,
+    val warehouse: String? = null,
+    val bin: String? = null,
 ) {
     fun toMap(): Map<String, Any?> = mapOf(
         "sku" to sku,
@@ -18,6 +20,8 @@ data class TagMapping(
         "updatedAt" to FirestoreValueCodec.serverTimestamp(),
         "origin" to origin,
         "syncRev" to syncRev,
+        "warehouse" to warehouse,
+        "bin" to bin,
     )
 
     companion object {
@@ -31,6 +35,8 @@ data class TagMapping(
                 updatedAt = FirestoreValueCodec.readEpochMillis(map["updatedAt"]),
                 origin = map["origin"] as? String ?: "app",
                 syncRev = (map["syncRev"] as? Number)?.toLong() ?: 0L,
+                warehouse = map["warehouse"] as? String,
+                bin = map["bin"] as? String,
             )
         }
     }

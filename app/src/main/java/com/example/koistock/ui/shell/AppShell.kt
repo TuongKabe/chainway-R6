@@ -28,13 +28,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.koistock.data.remote.HttpAssignSessionRepository
+import com.example.koistock.data.remote.HttpCountInventoryRepository
 import com.example.koistock.data.remote.HttpGsheetWriteRepository
 import com.example.koistock.data.remote.HttpLocationRepository
+import com.example.koistock.data.remote.DataStoreCatalogPayloadCache
+import com.example.koistock.data.remote.SupabaseCatalogFactory
+import com.example.koistock.data.remote.SupabaseLocateCatalogRepository
 import com.example.koistock.data.remote.HttpProductRepository
 import com.example.koistock.data.remote.HttpStockCommandRepository
 import com.example.koistock.data.remote.HttpSyncRepository
@@ -49,7 +55,6 @@ import com.example.koistock.device.ToneBeeper
 import com.example.koistock.device.ScanFunction
 import com.example.koistock.device.ScanProfile
 import com.example.koistock.device.ScanProfileStore
-import com.example.koistock.domain.ExpectedItem
 import com.example.koistock.ui.settings.ScanConfigScreen
 import com.example.koistock.ui.assign.AssignTagScreen
 import com.example.koistock.ui.assign.AssignTagViewModel
@@ -70,6 +75,7 @@ import com.example.koistock.ui.lookup.LookupViewModel
 import com.example.koistock.ui.putaway.PutawayScreen
 import com.example.koistock.ui.putaway.PutawayViewModel
 import com.example.koistock.ui.settings.SettingsScreen
+import com.example.koistock.ui.settings.R6SettingsViewModel
 import com.example.koistock.ui.zones.ZoneViewModel
 import com.example.koistock.ui.warehouse.ProductManagementViewModel
 import com.example.koistock.ui.warehouse.WarehouseManagementScreen
@@ -84,6 +90,7 @@ fun AppShell(
     vm: ConnectionViewModel,
     reader: RfidReader,
     scanProfileStore: ScanProfileStore,
+    dataStore: DataStore<Preferences>,
 ) {
     val navController = rememberNavController()
     val state by vm.state.collectAsState()
@@ -98,6 +105,12 @@ fun AppShell(
     val syncRepo = remember { HttpSyncRepository(api) }
     val gsheetWriteRepo = remember { HttpGsheetWriteRepository(api) }
     val assignSessionRepo = remember { HttpAssignSessionRepository(api) }
+    val countInventoryRepo = remember { HttpCountInventoryRepository(api) }
+    val locateCatalogStore = remember(dataStore) { DataStoreCatalogPayloadCache(dataStore) }
+    val locateCatalogApi = remember { SupabaseCatalogFactory.create() }
+    val locateCatalogRepo = remember(locateCatalogApi, locateCatalogStore) {
+        SupabaseLocateCatalogRepository(locateCatalogApi, locateCatalogStore)
+    }
     val products by productRepo.observeAll().collectAsState(initial = emptyList())
     val locations by locationRepo.observeAll().collectAsState(initial = emptyList())
     val warehouseSync = remember {
@@ -107,13 +120,14 @@ fun AppShell(
             refreshLocations = locationRepo::refresh,
         )
     }
-    val expectedItems = remember(products) {
-        products.map { ExpectedItem(it.sku, it.name, it.quantity.toInt(), it.locationCode) }
-    }
-
     val snackbarHostState = remember { SnackbarHostState() }
     val shellScope = rememberCoroutineScope()
+    val r6SettingsVm = remember(reader, scanProfileStore) {
+        R6SettingsViewModel(reader, scanProfileStore, shellScope)
+    }
+    val r6SettingsState by r6SettingsVm.state.collectAsState()
     var isSyncing by remember { mutableStateOf(false) }
+    var requestedWarehouseSku by remember { mutableStateOf<String?>(null) }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -218,6 +232,9 @@ fun AppShell(
                 SettingsScreen(
                     connectionState = state,
                     baseUrl = KoiApiConfig.BASE_URL,
+                    r6State = r6SettingsState,
+                    onSelectRegion = r6SettingsVm::saveRegion,
+                    onRefreshR6 = r6SettingsVm::refresh,
                     onOpen = navController::navigate,
                 )
             }
@@ -229,8 +246,11 @@ fun AppShell(
                 ScanConfigScreen(
                     function = function,
                     profile = profile,
-                    onSave = { shellScope.launch { scanProfileStore.save(function, it) } },
-                    onResetDefault = { shellScope.launch { scanProfileStore.reset(function) } },
+                    snapshot = r6SettingsState.snapshot,
+                    statusMessage = r6SettingsState.message,
+                    onRefresh = r6SettingsVm::refresh,
+                    onSave = { r6SettingsVm.saveProfile(function, it) },
+                    onResetDefault = { r6SettingsVm.resetProfile(function) },
                 )
             }
             composable(AppDestinations.Pairing.route) {
@@ -284,12 +304,11 @@ fun AppShell(
                         scope = locateScope,
                         profile = profile,
                         beeper = beeper,
+                        catalogRepo = locateCatalogRepo,
                     )
                 }
                 LocateScreen(
                     vm = locateVm,
-                    products = products,
-                    tagRepo = tagRepo,
                     isConnected = state is com.example.koistock.device.ConnectionState.Connected,
                     onOpenPairing = { navController.navigate(AppDestinations.Pairing.route) },
                 )
@@ -308,9 +327,13 @@ fun AppShell(
                         now = { System.currentTimeMillis() },
                         scope = countScope,
                         profile = profile,
+                        countInventoryRepo = countInventoryRepo,
                     )
                 }
-                CountScreen(vm = countVm, expectedItems = expectedItems)
+                CountScreen(
+                    vm = countVm,
+                    locations = locations,
+                )
             }
             composable(AppDestinations.InOut.route) {
                 val inOutScope = rememberCoroutineScope()
@@ -347,6 +370,10 @@ fun AppShell(
                         syncAfterSave = warehouseSync::syncAndRefresh,
                     )
                 }
+                LaunchedEffect(requestedWarehouseSku, productManagementVm) {
+                    requestedWarehouseSku?.let(productManagementVm::selectProductWhenAvailable)
+                    requestedWarehouseSku = null
+                }
                 WarehouseManagementScreen(productVm = productManagementVm, zoneVm = zoneVm)
             }
             composable(AppDestinations.Assign.route) {
@@ -366,7 +393,14 @@ fun AppShell(
                         profile = profile,
                     )
                 }
-                AssignTagScreen(vm = assignVm, products = products)
+                AssignTagScreen(
+                    vm = assignVm,
+                    products = products,
+                    onManageSku = { sku ->
+                        requestedWarehouseSku = sku
+                        navController.navigate(AppDestinations.Warehouse.route)
+                    },
+                )
             }
             composable(AppDestinations.Putaway.route) {
                 val putawayScope = rememberCoroutineScope()

@@ -1,36 +1,75 @@
 package com.example.koistock.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class CountReconcilerTest {
-    private val expected = listOf(
-        ExpectedItem("S1", "Áo", 3, "A-03"),
-        ExpectedItem("S2", "Quần", 2, "A-03"),
-        ExpectedItem("S3", "Nón", 1, "B-01"),
-    )
-
     @Test
-    fun match_whenCountedEqualsExpectedInZone() {
-        val rows = CountReconciler.reconcile("A-03", mapOf("S1" to 3), expected)
-        assertEquals(CountStatus.MATCH, rows.first { it.sku == "S1" }.status)
+    fun oneTagMatchesSkuWithDbStockTen() {
+        val row = CountReconciler.reconcile(
+            scope = CountScope.EntireWarehouse,
+            countedBySku = mapOf("S1" to 1),
+            expected = listOf(ExpectedItem("S1", "Áo", 10, "", "cái")),
+            skusWithStockAnywhere = setOf("S1"),
+        ).single()
+
+        assertEquals(CountStatus.MATCH, row.status)
+        assertEquals(1, row.scannedTagCount)
+        assertEquals(10, row.dbStockQty)
+        assertEquals("cái", row.unit)
     }
 
     @Test
-    fun missing_whenExpectedButNotCounted() {
-        val rows = CountReconciler.reconcile("A-03", mapOf("S1" to 3), expected)
-        assertEquals(CountStatus.MISSING, rows.first { it.sku == "S2" }.status)
+    fun unscannedPositiveScopedStockIsMissing() {
+        val row = CountReconciler.reconcile(
+            CountScope.EntireWarehouse,
+            emptyMap(),
+            listOf(ExpectedItem("S1", "Áo", 10, "", "cái")),
+            setOf("S1"),
+        ).single()
+
+        assertEquals(CountStatus.MISSING, row.status)
     }
 
     @Test
-    fun misplaced_whenCountedButHomeIsOtherZone() {
-        val rows = CountReconciler.reconcile("A-03", mapOf("S1" to 3, "S3" to 1), expected)
-        assertEquals(CountStatus.MISPLACED, rows.first { it.sku == "S3" }.status)
+    fun scannedSkuWithStockElsewhereIsMisplacedInSpecificScope() {
+        val row = CountReconciler.reconcile(
+            CountScope.Location("A", setOf("A", "A-01")),
+            mapOf("S1" to 1),
+            emptyList(),
+            setOf("S1"),
+            mapOf("S1" to CountInventoryItem("S1", "Áo khoác", "cái", com.example.koistock.data.model.TrackingMode.BULK)),
+        ).single()
+
+        assertEquals(CountStatus.MISPLACED, row.status)
+        assertEquals("A", row.locationCode)
+        assertEquals("Áo khoác", row.name)
+        assertEquals("cái", row.unit)
     }
 
     @Test
-    fun extra_whenCountedUnknownSku() {
-        val rows = CountReconciler.reconcile("A-03", mapOf("SX" to 1), expected)
-        assertEquals(CountStatus.EXTRA, rows.first { it.sku == "SX" }.status)
+    fun scannedUnknownSkuIsExtra() {
+        val row = CountReconciler.reconcile(
+            CountScope.Location("A", setOf("A")),
+            mapOf("SX" to 1),
+            emptyList(),
+            emptySet(),
+        ).single()
+
+        assertEquals(CountStatus.EXTRA, row.status)
+    }
+
+    @Test
+    fun entireWarehouseNeverMarksScannedRowMisplaced() {
+        val row = CountReconciler.reconcile(
+            CountScope.EntireWarehouse,
+            mapOf("S1" to 1),
+            emptyList(),
+            setOf("S1"),
+        ).single()
+
+        assertNotEquals(CountStatus.MISPLACED, row.status)
+        assertEquals(CountStatus.EXTRA, row.status)
     }
 }

@@ -1,5 +1,7 @@
 package com.example.koistock.ui.locate
 
+import com.example.koistock.data.remote.LocateCatalogRepo
+import com.example.koistock.data.remote.LocatableProduct
 import com.example.koistock.device.Beeper
 import com.example.koistock.device.RfidReader
 import com.example.koistock.device.ScanProfile
@@ -11,6 +13,27 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+sealed interface LocateCatalogState {
+    data object Loading : LocateCatalogState
+    data class Ready(
+        val items: List<LocatableProduct>,
+        val refreshing: Boolean = false,
+        val warning: String? = null,
+    ) : LocateCatalogState
+    data class Error(val message: String) : LocateCatalogState
+}
+
+internal fun filterLocatableProducts(
+    items: List<LocatableProduct>,
+    query: String,
+): List<LocatableProduct> {
+    val normalized = query.trim()
+    return if (normalized.isEmpty()) items else items.filter {
+        it.product.sku.contains(normalized, ignoreCase = true) ||
+            it.product.name.contains(normalized, ignoreCase = true)
+    }
+}
 
 object BeepCadence {
     /**
@@ -42,7 +65,10 @@ class LocateViewModel(
     private val profile: ScanProfile = ScanProfile(),
     /** Phát tiếng qua loa điện thoại; buzzer R6 bị tắt khi dò nên không dùng được. */
     private val beeper: Beeper = Beeper.NoOp,
+    private val catalogRepo: LocateCatalogRepo? = null,
 ) {
+    private val mutableCatalogState = MutableStateFlow<LocateCatalogState>(LocateCatalogState.Loading)
+    val catalogState: StateFlow<LocateCatalogState> = mutableCatalogState.asStateFlow()
     private val mutableSignal = MutableStateFlow(0)
     val signal: StateFlow<Int> = mutableSignal.asStateFlow()
     private val mutableIntervalMs = MutableStateFlow(BeepCadence.intervalMs(0))
@@ -81,6 +107,60 @@ class LocateViewModel(
     }
 
     /** Đặt tag mục tiêu để cò có thể bắt đầu dò. */
+    fun loadCatalog() {
+        val catalog = catalogRepo ?: return
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val cached = runCatching { catalog.loadCached() }.getOrNull()
+            mutableCatalogState.value = if (cached != null) {
+                LocateCatalogState.Ready(cached, refreshing = true)
+            } else {
+                LocateCatalogState.Loading
+            }
+            try {
+                mutableCatalogState.value = LocateCatalogState.Ready(catalog.refresh())
+            } catch (failure: Exception) {
+                val message = failure.message ?: "Không tải được danh sách SKU đã gán tag."
+                mutableCatalogState.value = if (cached != null) {
+                    LocateCatalogState.Ready(cached, warning = message)
+                } else {
+                    LocateCatalogState.Error(message)
+                }
+            }
+        }
+    }
+
+    fun findExactSku(sku: String) {
+        val catalog = catalogRepo ?: return
+        val current = mutableCatalogState.value as? LocateCatalogState.Ready ?: return
+        val normalizedSku = sku.trim()
+        if (normalizedSku.isEmpty()) return
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            mutableCatalogState.value = current.copy(refreshing = true, warning = null)
+            try {
+                val found = catalog.findBySku(normalizedSku)
+                mutableCatalogState.value = if (found == null) {
+                    current.copy(
+                        refreshing = false,
+                        warning = "Không tìm thấy SKU có EPC active.",
+                    )
+                } else {
+                    current.copy(
+                        items = (current.items.filterNot {
+                            it.product.sku.equals(found.product.sku, ignoreCase = true)
+                        } + found).sortedBy { it.product.sku },
+                        refreshing = false,
+                        warning = null,
+                    )
+                }
+            } catch (failure: Exception) {
+                mutableCatalogState.value = current.copy(
+                    refreshing = false,
+                    warning = failure.message ?: "Không tải được SKU từ máy chủ.",
+                )
+            }
+        }
+    }
+
     fun setTarget(epc: String?) {
         armedEpc = epc
     }
@@ -138,8 +218,8 @@ class LocateViewModel(
     }
 
     private fun restartBeepLoop(signal: Int) {
-        beepJob?.cancel()
         if (signal <= 0 || !mutableIsLocating.value) return
+        if (beepJob?.isActive == true) return
         beepJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             // Vòng beep tự thoát khi hết dò, không phụ thuộc riêng vào cancel.
             while (mutableIsLocating.value) {

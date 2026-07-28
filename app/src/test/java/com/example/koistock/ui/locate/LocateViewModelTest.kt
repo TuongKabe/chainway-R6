@@ -1,6 +1,12 @@
 package com.example.koistock.ui.locate
 
+import com.example.koistock.data.model.Product
+import com.example.koistock.data.model.TagMapping
+import com.example.koistock.data.model.TrackingMode
+import com.example.koistock.data.remote.LocatableProduct
+import com.example.koistock.data.remote.LocateCatalogRepo
 import com.example.koistock.device.FakeRfidReader
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -11,11 +17,94 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LocateViewModelTest {
+    private class RecordingCatalogRepo(
+        private val cached: List<LocatableProduct>? = null,
+        private val refreshed: List<LocatableProduct> = emptyList(),
+        private val failure: Throwable? = null,
+        private val refreshGate: CompletableDeferred<Unit>? = null,
+    ) : LocateCatalogRepo {
+        var refreshCalls = 0
+
+        override suspend fun loadCached() = cached
+
+        override suspend fun refresh(): List<LocatableProduct> {
+            refreshCalls += 1
+            refreshGate?.await()
+            failure?.let { throw it }
+            return refreshed
+        }
+    }
+
     /** Beeper giả để đếm số tiếng phát ra qua loa điện thoại. */
     private class FakeBeeper : com.example.koistock.device.Beeper {
         var count = 0
         override fun beep() { count += 1 }
         override fun release() = Unit
+    }
+
+    @Test
+    fun loadCatalog_loadsBatchCatalogOnce() = runTest {
+        val catalog = RecordingCatalogRepo(
+            refreshed = listOf(
+                LocatableProduct(
+                    product("SKU-A", "Koi A"),
+                    listOf(TagMapping("EPC-A1", "SKU-A"), TagMapping("EPC-A2", "SKU-A")),
+                ),
+            ),
+        )
+        val vm = LocateViewModel(FakeRfidReader(), backgroundScope, catalogRepo = catalog)
+
+        vm.loadCatalog()
+        runCurrent()
+
+        val ready = vm.catalogState.value as LocateCatalogState.Ready
+        assertEquals(1, catalog.refreshCalls)
+        assertEquals(listOf("SKU-A"), ready.items.map { it.product.sku })
+        assertEquals(listOf("EPC-A1", "EPC-A2"), ready.items.single().activeTags.map { it.epc })
+    }
+
+    @Test
+    fun loadCatalog_repositoryFailureWithoutCache_returnsError() = runTest {
+        val catalog = RecordingCatalogRepo(failure = IllegalStateException("catalog offline"))
+        val vm = LocateViewModel(
+            FakeRfidReader(),
+            backgroundScope,
+            catalogRepo = catalog,
+        )
+
+        vm.loadCatalog()
+        runCurrent()
+
+        val error = vm.catalogState.value as LocateCatalogState.Error
+        assertEquals(1, catalog.refreshCalls)
+        assertTrue(error.message.contains("catalog offline"))
+    }
+
+    @Test
+    fun loadCatalog_showsCacheWhileRefreshIsRunning() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val cached = listOf(LocatableProduct(product("SKU-CACHED", "Cached"), listOf(TagMapping("E1", "SKU-CACHED"))))
+        val catalog = RecordingCatalogRepo(cached = cached, refreshed = emptyList(), refreshGate = gate)
+        val vm = LocateViewModel(FakeRfidReader(), backgroundScope, catalogRepo = catalog)
+
+        vm.loadCatalog()
+        runCurrent()
+
+        val ready = vm.catalogState.value as LocateCatalogState.Ready
+        assertEquals(listOf("SKU-CACHED"), ready.items.map { it.product.sku })
+        assertTrue(ready.refreshing)
+        gate.complete(Unit)
+    }
+
+    @Test
+    fun filterLocatableProducts_trimsQueryAndIgnoresCase() {
+        val items = listOf(
+            LocatableProduct(product("SKU-ABC", "Koi Showa"), listOf(TagMapping("E1", "SKU-ABC"))),
+            LocatableProduct(product("SKU-XYZ", "Koi Kohaku"), listOf(TagMapping("E2", "SKU-XYZ"))),
+        )
+
+        assertEquals(listOf("SKU-ABC"), filterLocatableProducts(items, "  sku-abc ").map { it.product.sku })
+        assertEquals(listOf("SKU-XYZ"), filterLocatableProducts(items, " KOHAKU ").map { it.product.sku })
     }
 
     @Test
@@ -152,6 +241,29 @@ class LocateViewModelTest {
     }
 
     @Test
+    fun repeatedMatchingReads_doNotRestartBeepBeforeCurrentCadenceElapses() = runTest {
+        val reader = FakeRfidReader()
+        val beeper = FakeBeeper()
+        val vm = LocateViewModel(reader, this.backgroundScope, beeper = beeper)
+
+        vm.start("E2000ABC")
+        runCurrent()
+        repeat(200) {
+            reader.emitTag("E2000ABC", -29)
+            runCurrent()
+        }
+
+        // Lần đọc đầu tiên bắt đầu vòng beep. Các read RFID tiếp theo chỉ cập nhật
+        // RSSI, không được hủy/tạo lại vòng beep và phát dồn 200 âm cùng lúc.
+        assertEquals(1, beeper.count)
+
+        advanceTimeBy(BeepCadence.intervalMs(100))
+        runCurrent()
+        assertEquals(2, beeper.count)
+        vm.stop()
+    }
+
+    @Test
     fun locate_mutesHardwareBeepWhileRunning() = runTest {
         val reader = FakeRfidReader()
         val vm = LocateViewModel(reader, this.backgroundScope, beeper = FakeBeeper())
@@ -165,4 +277,11 @@ class LocateViewModelTest {
         runCurrent()
         assertTrue(reader.readBeepEnabled)
     }
+
+    private fun product(sku: String, name: String) = Product(
+        sku = sku,
+        name = name,
+        unit = "con",
+        trackingMode = TrackingMode.SERIALIZED,
+    )
 }
