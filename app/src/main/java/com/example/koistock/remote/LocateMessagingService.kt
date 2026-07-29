@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.koistock.MainActivity
 import com.example.koistock.remoteLocateIntentFlow
@@ -13,12 +14,13 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 
 class LocateMessagingService : FirebaseMessagingService() {
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val deviceRegistrar = DeviceRegistrar()
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -26,38 +28,11 @@ class LocateMessagingService : FirebaseMessagingService() {
             .edit()
             .putString("fcm_token", token)
             .apply()
-        registerToken(token)
-    }
-
-    companion object {
-        const val CHANNEL_ID = "remote_locate"
-        private const val SUPABASE_URL = "https://fwetygumscetrwckoxpb.supabase.co"
-        private const val SUPABASE_ANON_KEY = "sb_publishable_c5ehYaWf6FMufDuDPaM7wg_s-xH3Uup"
-        private const val DEVICE_ID = "koistock-handheld-01"
-
-        fun registerToken(context: Context, token: String) {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val json = """{"fcm_token":"$token","enabled":true}"""
-                    val url = URL("$SUPABASE_URL/rest/v1/devices?id=eq.$DEVICE_ID")
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.requestMethod = "PATCH"
-                    conn.doOutput = true
-                    conn.setRequestProperty("Content-Type", "application/json")
-                    conn.setRequestProperty("apikey", SUPABASE_ANON_KEY)
-                    conn.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
-                    conn.setRequestProperty("Prefer", "resolution=merge-duplicates")
-                    OutputStreamWriter(conn.outputStream).use { it.write(json) }
-                    conn.connect()
-                    conn.responseCode
-                    conn.disconnect()
-                } catch (_: Exception) { }
-            }
+        serviceScope.launch {
+            deviceRegistrar.register(token)
+                .onSuccess { Log.i("RemoteLocate", "Rotated FCM token registration succeeded") }
+                .onFailure { Log.e("RemoteLocate", "Rotated FCM token registration failed", it) }
         }
-    }
-
-    private fun registerToken(token: String) {
-        registerToken(this, token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -109,4 +84,7 @@ class LocateMessagingService : FirebaseMessagingService() {
         manager.notify(command.commandId.hashCode(), notification)
     }
 
+    companion object {
+        const val CHANNEL_ID = "remote_locate"
+    }
 }

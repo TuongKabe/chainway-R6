@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -20,12 +21,13 @@ import com.example.koistock.device.ChainwayRfidReader
 import com.example.koistock.device.DevicePrefs
 import com.example.koistock.device.RfidReader
 import com.example.koistock.device.ScanProfileStore
-import com.example.koistock.remote.LocateMessagingService
 import com.example.koistock.remote.RemoteLocateCommand
+import com.example.koistock.remote.DeviceRegistrar
 import com.example.koistock.ui.connection.ConnectionViewModel
 import com.google.firebase.messaging.FirebaseMessaging
 import com.example.koistock.ui.shell.AppShell
 import com.example.koistock.ui.theme.KOIStockTheme
+import kotlinx.coroutines.launch
 
 val remoteLocateIntentFlow = MutableSharedFlow<RemoteLocateCommand>(
     replay = 1,
@@ -49,6 +51,14 @@ class MainActivity : ComponentActivity() {
         val prefs = DevicePrefs(dataStore)
         val scanProfileStore = ScanProfileStore(dataStore)
         val vm = ConnectionViewModel(reader, prefs, lifecycleScope)
+
+        FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+            lifecycleScope.launch {
+                DeviceRegistrar().register(token)
+                    .onSuccess { Log.i("RemoteLocate", "FCM device registration succeeded") }
+                    .onFailure { Log.e("RemoteLocate", "FCM device registration failed", it) }
+            }
+        }
 
         setContent {
             val launcher = rememberLauncherForActivityResult(
@@ -78,23 +88,6 @@ class MainActivity : ComponentActivity() {
         }
 
         handleIntent(intent)
-
-        // Register FCM token at startup
-        val savedToken = getSharedPreferences("fcm_prefs", MODE_PRIVATE)
-            .getString("fcm_token", null)
-        if (savedToken != null) {
-            LocateMessagingService.registerToken(this, savedToken)
-        } else {
-            // Fetch token actively on first launch
-            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val token = task.result
-                    getSharedPreferences("fcm_prefs", MODE_PRIVATE)
-                        .edit().putString("fcm_token", token).apply()
-                    LocateMessagingService.registerToken(this, token)
-                }
-            }
-        }
     }
 
     override fun onNewIntent(intent: Intent) {
