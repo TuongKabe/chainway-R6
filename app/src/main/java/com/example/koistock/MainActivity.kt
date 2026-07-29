@@ -23,6 +23,7 @@ import com.example.koistock.device.ScanProfileStore
 import com.example.koistock.remote.LocateMessagingService
 import com.example.koistock.remote.RemoteLocateCommand
 import com.example.koistock.ui.connection.ConnectionViewModel
+import com.google.firebase.messaging.FirebaseMessaging
 import com.example.koistock.ui.shell.AppShell
 import com.example.koistock.ui.theme.KOIStockTheme
 
@@ -75,11 +76,21 @@ class MainActivity : ComponentActivity() {
 
         handleIntent(intent)
 
-        // Register existing FCM token at startup
+        // Register FCM token at startup
         val savedToken = getSharedPreferences("fcm_prefs", MODE_PRIVATE)
             .getString("fcm_token", null)
         if (savedToken != null) {
             LocateMessagingService.registerToken(this, savedToken)
+        } else {
+            // Fetch token actively on first launch
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val token = task.result
+                    getSharedPreferences("fcm_prefs", MODE_PRIVATE)
+                        .edit().putString("fcm_token", token).apply()
+                    LocateMessagingService.registerToken(this, token)
+                }
+            }
         }
     }
 
