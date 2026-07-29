@@ -26,6 +26,8 @@ class FakeRfidReader : RfidReader {
     override val rawKeyEvents: SharedFlow<String> = rawKeyFlow.asSharedFlow()
 
     private var connectResult = true
+    var connectCount = 0
+        private set
     private var battery = 100
     var scannedSingle: ScannedTag? = null
     var singleScanCount = 0
@@ -47,6 +49,7 @@ class FakeRfidReader : RfidReader {
     }
 
     override suspend fun connect(mac: String): Boolean {
+        connectCount += 1
         state.value = ConnectionState.Connecting(mac)
         state.value = if (connectResult) {
             ConnectionState.Connected(mac)

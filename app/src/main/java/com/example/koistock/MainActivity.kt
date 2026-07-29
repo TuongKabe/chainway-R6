@@ -12,7 +12,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -61,29 +64,41 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val launcher = rememberLauncherForActivityResult(
-                ActivityResultContracts.RequestMultiplePermissions(),
-            ) { }
-            val permissions = remember {
-                buildList {
-                    if (Build.VERSION.SDK_INT >= 31) {
-                        addAll(listOf(
+            val readerPermissions = remember {
+                if (Build.VERSION.SDK_INT >= 31) {
+                    arrayOf(
                         Manifest.permission.BLUETOOTH_SCAN,
                         Manifest.permission.BLUETOOTH_CONNECT,
-                        ))
-                    } else {
-                        add(Manifest.permission.ACCESS_FINE_LOCATION)
-                    }
+                    )
+                } else {
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+            }
+            var readerPermissionGranted by remember { mutableStateOf<Boolean?>(null) }
+            val launcher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestMultiplePermissions(),
+            ) { grants ->
+                readerPermissionGranted = readerPermissions.all { grants[it] == true }
+            }
+            val requestedPermissions = remember {
+                buildList {
+                    addAll(readerPermissions)
                     if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
                 }.toTypedArray()
             }
 
             LaunchedEffect(Unit) {
-                launcher.launch(permissions)
+                launcher.launch(requestedPermissions)
             }
 
             KOIStockTheme(darkTheme = false) {
-                AppShell(vm, reader, scanProfileStore, dataStore)
+                AppShell(
+                    vm = vm,
+                    reader = reader,
+                    scanProfileStore = scanProfileStore,
+                    dataStore = dataStore,
+                    readerPermissionGranted = readerPermissionGranted,
+                )
             }
         }
 

@@ -90,6 +90,19 @@ class ConnectionViewModelTest {
     }
 
     @Test
+    fun autoReconnect_whenAlreadyConnected_doesNotConnectAgain() = runTest {
+        val prefs = prefs()
+        prefs.saveMac("AA:BB:CC:DD:EE:FF")
+        val reader = FakeRfidReader()
+        val vm = ConnectionViewModel(reader, prefs, this.backgroundScope)
+        vm.connect("AA:BB:CC:DD:EE:FF")
+        advanceUntilIdle()
+
+        assertTrue(vm.tryAutoReconnect())
+        assertEquals(1, reader.connectCount)
+    }
+
+    @Test
     fun disconnect_clearsBattery() = runTest {
         val reader = FakeRfidReader().apply { setBattery(73) }
         val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)

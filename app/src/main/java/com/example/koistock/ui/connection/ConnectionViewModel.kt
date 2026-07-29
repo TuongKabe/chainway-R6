@@ -82,6 +82,7 @@ class ConnectionViewModel(
     }
 
     suspend fun tryAutoReconnect(): Boolean {
+        if (state.value is ConnectionState.Connected) return true
         val mac = prefs.lastMac.first() ?: return false
         val connected = reader.connect(mac)
         if (connected) {

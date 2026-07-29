@@ -64,6 +64,8 @@ import com.example.koistock.ui.assign.AssignTagViewModel
 import com.example.koistock.ui.common.BatteryIndicator
 import com.example.koistock.ui.connection.ConnectionViewModel
 import com.example.koistock.ui.connection.PairingScreen
+import com.example.koistock.ui.connection.StartupConnectionCoordinator
+import com.example.koistock.ui.connection.StartupConnectionResult
 import com.example.koistock.ui.count.CountScreen
 import com.example.koistock.ui.count.CountViewModel
 import com.example.koistock.ui.guide.ConnectionGuideScreen
@@ -94,6 +96,7 @@ fun AppShell(
     reader: RfidReader,
     scanProfileStore: ScanProfileStore,
     dataStore: DataStore<Preferences>,
+    readerPermissionGranted: Boolean?,
 ) {
     val navController = rememberNavController()
     val state by vm.state.collectAsState()
@@ -131,6 +134,20 @@ fun AppShell(
     val r6SettingsState by r6SettingsVm.state.collectAsState()
     var isSyncing by remember { mutableStateOf(false) }
     var requestedWarehouseSku by remember { mutableStateOf<String?>(null) }
+    val startupConnection = remember(vm) {
+        StartupConnectionCoordinator(vm::tryAutoReconnect)
+    }
+
+    LaunchedEffect(readerPermissionGranted) {
+        if (
+            startupConnection.run(readerPermissionGranted) ==
+            StartupConnectionResult.OpenPairing
+        ) {
+            navController.navigate(AppDestinations.Pairing.route) {
+                launchSingleTop = true
+            }
+        }
+    }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
