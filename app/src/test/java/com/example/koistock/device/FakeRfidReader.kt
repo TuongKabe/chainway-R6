@@ -28,6 +28,8 @@ class FakeRfidReader : RfidReader {
     private var connectResult = true
     var connectCount = 0
         private set
+    var deviceScanCount = 0
+        private set
     private var battery = 100
     var scannedSingle: ScannedTag? = null
     var singleScanCount = 0
@@ -41,6 +43,7 @@ class FakeRfidReader : RfidReader {
     val scanDevices = mutableListOf(BleDeviceInfo("R6-TEST", "AA:BB:CC:DD:EE:FF", -50))
 
     override fun startDeviceScan(): Flow<BleDeviceInfo> = flow {
+        deviceScanCount += 1
         state.value = ConnectionState.Scanning
         scanDevices.forEach { emit(it) }
         if (state.value == ConnectionState.Scanning) {

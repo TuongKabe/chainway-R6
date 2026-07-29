@@ -29,6 +29,10 @@ fun PairingScreen(
     val state by vm.state.collectAsState()
     val devices by vm.devices.collectAsState()
 
+    LaunchedEffect(Unit) {
+        vm.scan()
+    }
+
     LaunchedEffect(state) {
         if (state is ConnectionState.Connected) {
             onConnected()

@@ -41,11 +41,13 @@ class ConnectionViewModelTest {
 
     @Test
     fun scan_populatesDevices() = runTest {
-        val vm = ConnectionViewModel(FakeRfidReader(), prefs(), this.backgroundScope)
+        val reader = FakeRfidReader()
+        val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)
 
         vm.scan()
         advanceUntilIdle()
 
+        assertEquals(1, reader.deviceScanCount)
         assertEquals(1, vm.devices.value.size)
         assertEquals("AA:BB:CC:DD:EE:FF", vm.devices.value.first().mac)
     }
