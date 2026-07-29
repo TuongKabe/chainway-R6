@@ -12,14 +12,18 @@ data class DeviceRegistrationRequest(
     val method: String,
     val url: String,
     val fcmToken: String,
-    val enabled: Boolean,
+    val deviceId: String,
 ) {
     companion object {
+        private const val BASE_URL = "https://kitleather.com"
+        private const val DEVICE_ID = "koistock-handheld-01"
+        private const val REGISTRATION_SECRET = "0ee742affd205e5328b847c9f00f4a4e"
+
         fun create(fcmToken: String) = DeviceRegistrationRequest(
-            method = "PATCH",
-            url = "https://fwetygumscetrwckoxpb.supabase.co/rest/v1/devices?id=eq.koistock-handheld-01",
+            method = "POST",
+            url = "$BASE_URL/api/devices/register",
             fcmToken = fcmToken,
-            enabled = true,
+            deviceId = DEVICE_ID,
         )
     }
 }
@@ -30,17 +34,15 @@ class DeviceRegistrar(
     suspend fun register(fcmToken: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val registration = DeviceRegistrationRequest.create(fcmToken)
-            val body = JSONObject()
-                .put("fcm_token", registration.fcmToken)
-                .put("enabled", registration.enabled)
+            val payload = JSONObject()
+                .put("deviceId", registration.deviceId)
+                .put("fcmToken", registration.fcmToken)
                 .toString()
-                .toRequestBody(JSON_MEDIA_TYPE)
+            val body = payload.toRequestBody(JSON_MEDIA_TYPE)
             val request = Request.Builder()
                 .url(registration.url)
-                .header("apikey", PUBLISHABLE_KEY)
-                .header("Authorization", "Bearer $PUBLISHABLE_KEY")
-                .header("Prefer", "return=minimal")
-                .patch(body)
+                .header("Authorization", "Bearer ${DeviceRegistrationRequest.Companion.REGISTRATION_SECRET}")
+                .post(body)
                 .build()
 
             client.newCall(request).execute().use { response ->
@@ -50,7 +52,6 @@ class DeviceRegistrar(
     }
 
     private companion object {
-        const val PUBLISHABLE_KEY = "sb_publishable_c5ehYaWf6FMufDuDPaM7wg_s-xH3Uup"
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
