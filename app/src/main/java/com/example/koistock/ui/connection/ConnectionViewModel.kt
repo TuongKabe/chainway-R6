@@ -62,7 +62,6 @@ class ConnectionViewModel(
 
     fun stopScan() {
         scanJob?.cancel()
-        scanJob = null
     }
 
     fun connect(mac: String) {

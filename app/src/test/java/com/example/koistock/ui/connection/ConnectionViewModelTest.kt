@@ -119,6 +119,21 @@ class ConnectionViewModelTest {
     }
 
     @Test
+    fun scan_immediatelyAfterStop_waitsForPreviousReaderScanToClose() = runTest {
+        val reader = FakeRfidReader()
+        val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)
+        vm.scan()
+        runCurrent()
+
+        vm.stopScan()
+        vm.scan()
+        runCurrent()
+
+        assertEquals(1, reader.maxActiveDeviceScans)
+        assertEquals(1, reader.activeDeviceScans)
+    }
+
+    @Test
     fun scan_whenAlreadyConnected_doesNotStartDeviceScan() = runTest {
         val reader = FakeRfidReader()
         val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)

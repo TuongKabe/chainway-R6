@@ -123,6 +123,12 @@ class ChainwayRfidReader(
             sdk.connect(
                 mac,
                 ConnectionStatusCallback<Any> { status, _ ->
+                if (!cont.isActive) {
+                    if (status == ConnectionStatus.CONNECTED) {
+                        runCatching { sdk.disconnect() }
+                    }
+                    return@ConnectionStatusCallback
+                }
                 when (status) {
                     ConnectionStatus.CONNECTED -> {
                         configGate.allowPending()
