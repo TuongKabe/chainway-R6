@@ -24,13 +24,14 @@ import com.example.koistock.device.ConnectionState
 @Composable
 fun PairingScreen(
     vm: ConnectionViewModel,
+    scanEnabled: Boolean,
     onConnected: () -> Unit,
 ) {
     val state by vm.state.collectAsState()
     val devices by vm.devices.collectAsState()
 
-    LaunchedEffect(Unit) {
-        vm.scan()
+    LaunchedEffect(scanEnabled) {
+        if (scanEnabled) vm.scan()
     }
 
     LaunchedEffect(state) {
@@ -56,6 +57,7 @@ fun PairingScreen(
 
         Button(
             onClick = vm::scan,
+            enabled = scanEnabled,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Tìm thiết bị")

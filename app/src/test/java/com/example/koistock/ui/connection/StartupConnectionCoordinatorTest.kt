@@ -6,6 +6,13 @@ import org.junit.Test
 
 class StartupConnectionCoordinatorTest {
     @Test
+    fun pairingScan_requiresGrantedBluetoothPermission() {
+        assertEquals(false, canStartPairingScan(null))
+        assertEquals(false, canStartPairingScan(false))
+        assertEquals(true, canStartPairingScan(true))
+    }
+
+    @Test
     fun unresolvedPermission_waitsAndCanRunLater() = runTest {
         var calls = 0
         val subject = StartupConnectionCoordinator { calls++; true }

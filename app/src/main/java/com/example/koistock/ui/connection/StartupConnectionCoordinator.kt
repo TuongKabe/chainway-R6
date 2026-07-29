@@ -7,6 +7,9 @@ sealed interface StartupConnectionResult {
     data object AlreadyHandled : StartupConnectionResult
 }
 
+internal fun canStartPairingScan(permissionGranted: Boolean?): Boolean =
+    permissionGranted == true
+
 class StartupConnectionCoordinator(
     private val reconnect: suspend () -> Boolean,
 ) {

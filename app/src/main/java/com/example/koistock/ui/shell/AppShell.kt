@@ -66,6 +66,7 @@ import com.example.koistock.ui.connection.ConnectionViewModel
 import com.example.koistock.ui.connection.PairingScreen
 import com.example.koistock.ui.connection.StartupConnectionCoordinator
 import com.example.koistock.ui.connection.StartupConnectionResult
+import com.example.koistock.ui.connection.canStartPairingScan
 import com.example.koistock.ui.count.CountScreen
 import com.example.koistock.ui.count.CountViewModel
 import com.example.koistock.ui.guide.ConnectionGuideScreen
@@ -283,9 +284,11 @@ fun AppShell(
                 )
             }
             composable(AppDestinations.Pairing.route) {
-                PairingScreen(vm = vm) {
-                    navController.popBackStack()
-                }
+                PairingScreen(
+                    vm = vm,
+                    scanEnabled = canStartPairingScan(readerPermissionGranted),
+                    onConnected = { navController.popBackStack() },
+                )
             }
             composable(AppDestinations.Guide.route) {
                 ConnectionGuideScreen()
