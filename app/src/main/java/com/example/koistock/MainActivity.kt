@@ -20,6 +20,7 @@ import com.example.koistock.device.ChainwayRfidReader
 import com.example.koistock.device.DevicePrefs
 import com.example.koistock.device.RfidReader
 import com.example.koistock.device.ScanProfileStore
+import com.example.koistock.remote.LocateMessagingService
 import com.example.koistock.remote.RemoteLocateCommand
 import com.example.koistock.ui.connection.ConnectionViewModel
 import com.example.koistock.ui.shell.AppShell
@@ -73,6 +74,13 @@ class MainActivity : ComponentActivity() {
         }
 
         handleIntent(intent)
+
+        // Register existing FCM token at startup
+        val savedToken = getSharedPreferences("fcm_prefs", MODE_PRIVATE)
+            .getString("fcm_token", null)
+        if (savedToken != null) {
+            LocateMessagingService.registerToken(this, savedToken)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

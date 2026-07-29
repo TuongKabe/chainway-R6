@@ -10,6 +10,12 @@ import androidx.core.app.NotificationCompat
 import com.example.koistock.MainActivity
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
 
 class LocateMessagingService : FirebaseMessagingService() {
 
@@ -19,6 +25,34 @@ class LocateMessagingService : FirebaseMessagingService() {
             .edit()
             .putString("fcm_token", token)
             .apply()
+        registerToken(token)
+    }
+
+    companion object {
+        const val CHANNEL_ID = "remote_locate"
+        private const val WEB_BASE_URL = "https://kitleather.com"
+        private const val DEVICE_ID = "koistock-handheld-01"
+
+        fun registerToken(context: Context, token: String) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val url = URL("$WEB_BASE_URL/api/devices/register")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    val json = """{"deviceId":"$DEVICE_ID","fcmToken":"$token"}"""
+                    OutputStreamWriter(conn.outputStream).use { it.write(json) }
+                    conn.connect()
+                    conn.responseCode // consume
+                    conn.disconnect()
+                } catch (_: Exception) { }
+            }
+        }
+    }
+
+    private fun registerToken(token: String) {
+        registerToken(this, token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -76,7 +110,4 @@ class LocateMessagingService : FirebaseMessagingService() {
         manager.notify(command.commandId.hashCode(), notification)
     }
 
-    companion object {
-        const val CHANNEL_ID = "remote_locate"
-    }
 }
