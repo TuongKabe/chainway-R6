@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "770403383527",
+    "project_id": "koistock-android-app",
+    "storage_bucket": "koistock-android-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:770403383527:android:73221ed9fb19767e838a42",
+        "android_client_info": {
+          "package_name": "com.example.koistock"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUZJle_nBfZ4q_YfGA9K9d8rFF4sFCVXE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -47,10 +47,15 @@ object AppDestinations {
     val titleByRoute: Map<String, String> = listOf(
         Dashboard, Settings, Pairing, Guide, Hardware,
         Lookup, Locate, InOut, Count, Assign, Putaway, Warehouse,
-    ).associate { it.route to it.title }
+    ).associate { it.route to it.title } + mapOf(LocateRoutePattern to Locate.title)
 
     const val ScanConfigArg = "function"
     const val ScanConfigRoutePattern = "scanconfig/{$ScanConfigArg}"
 
     fun scanConfigRoute(function: com.example.koistock.device.ScanFunction) = "scanconfig/${function.key}"
+
+    const val LocateSkuArg = "sku"
+    const val LocateRoutePattern = "locate?sku={$LocateSkuArg}"
+
+    fun locateRoute(sku: String) = "locate?sku=${java.net.URLEncoder.encode(sku, "UTF-8")}"
 }

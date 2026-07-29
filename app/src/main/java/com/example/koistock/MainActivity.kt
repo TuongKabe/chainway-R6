@@ -1,6 +1,7 @@
 package com.example.koistock
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -13,14 +14,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import kotlinx.coroutines.flow.MutableSharedFlow
 import androidx.lifecycle.lifecycleScope
 import com.example.koistock.device.ChainwayRfidReader
 import com.example.koistock.device.DevicePrefs
 import com.example.koistock.device.RfidReader
 import com.example.koistock.device.ScanProfileStore
+import com.example.koistock.remote.RemoteLocateCommand
 import com.example.koistock.ui.connection.ConnectionViewModel
 import com.example.koistock.ui.shell.AppShell
 import com.example.koistock.ui.theme.KOIStockTheme
+
+val remoteLocateIntentFlow = MutableSharedFlow<RemoteLocateCommand>(
+    replay = 1,
+    extraBufferCapacity = 4,
+)
 
 class MainActivity : ComponentActivity() {
     private val dataStore by lazy {
@@ -63,6 +71,22 @@ class MainActivity : ComponentActivity() {
                 AppShell(vm, reader, scanProfileStore, dataStore)
             }
         }
+
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val commandId = intent?.getStringExtra("commandId") ?: return
+        val sku = intent?.getStringExtra("sku") ?: return
+        val expiresAt = intent?.getLongExtra("expiresAt", 0L) ?: return
+        if (expiresAt == 0L) return
+
+        remoteLocateIntentFlow.tryEmit(RemoteLocateCommand(commandId, sku, expiresAt))
     }
 
     override fun onDestroy() {

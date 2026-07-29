@@ -58,6 +58,7 @@ fun LocateScreen(
     vm: LocateViewModel,
     isConnected: Boolean,
     onOpenPairing: () -> Unit,
+    requestedSku: String? = null,
 ) {
     val catalogState by vm.catalogState.collectAsState()
     var selectedSku by rememberSaveable { mutableStateOf<String?>(null) }
@@ -67,6 +68,26 @@ fun LocateScreen(
     }
 
     LaunchedEffect(vm) { vm.loadCatalog() }
+
+    // Auto-select requested SKU from remote command
+    var hasSearchedForSku by remember { mutableStateOf(false) }
+    LaunchedEffect(requestedSku) {
+        hasSearchedForSku = false
+    }
+    LaunchedEffect(requestedSku, catalogState) {
+        if (requestedSku != null && catalogState is LocateCatalogState.Ready) {
+            val state = catalogState as LocateCatalogState.Ready
+            val match = state.items.find {
+                it.product.sku.equals(requestedSku, ignoreCase = true)
+            }
+            if (match != null) {
+                selectedSku = requestedSku
+            } else if (!state.refreshing && !hasSearchedForSku) {
+                hasSearchedForSku = true
+                vm.findExactSku(requestedSku)
+            }
+        }
+    }
 
     if (selected == null) {
         when (val state = catalogState) {

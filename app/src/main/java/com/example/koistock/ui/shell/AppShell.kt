@@ -30,10 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.koistock.remote.remoteLocateIntentFlow
 import com.example.koistock.data.remote.HttpAssignSessionRepository
 import com.example.koistock.data.remote.HttpCountInventoryRepository
 import com.example.koistock.data.remote.HttpGsheetWriteRepository
@@ -168,6 +171,15 @@ fun AppShell(
         }
     }
 
+    // Collect remote locate commands from FCM intents and navigate to locate screen.
+    LaunchedEffect(Unit) {
+        remoteLocateIntentFlow.collect { cmd ->
+            navController.navigate(AppDestinations.locateRoute(cmd.sku)) {
+                launchSingleTop = true
+            }
+        }
+    }
+
     Scaffold(
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
@@ -289,7 +301,13 @@ fun AppShell(
                     onAssign = { navController.navigate(AppDestinations.Assign.route) },
                 )
             }
-            composable(AppDestinations.Locate.route) {
+            composable(
+                route = AppDestinations.LocateRoutePattern,
+                arguments = listOf(navArgument(AppDestinations.LocateSkuArg) {
+                    type = NavType.StringType; nullable = true; defaultValue = null
+                }),
+            ) { backStackEntry ->
+                val sku = backStackEntry.arguments?.getString(AppDestinations.LocateSkuArg)
                 val locateScope = rememberCoroutineScope()
                 val profile by scanProfileStore.profile(ScanFunction.LOCATE)
                     .collectAsState(initial = ScanProfile.default(ScanFunction.LOCATE))
@@ -311,6 +329,7 @@ fun AppShell(
                     vm = locateVm,
                     isConnected = state is com.example.koistock.device.ConnectionState.Connected,
                     onOpenPairing = { navController.navigate(AppDestinations.Pairing.route) },
+                    requestedSku = sku,
                 )
             }
             composable(AppDestinations.Count.route) {
