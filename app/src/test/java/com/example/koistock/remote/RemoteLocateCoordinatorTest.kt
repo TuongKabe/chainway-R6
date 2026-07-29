@@ -4,10 +4,13 @@ import androidx.test.core.app.ApplicationProvider
 import android.content.Context
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.test.assertTrue
-import kotlin.test.assertEquals
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class RemoteLocateCoordinatorTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val store = HandledCommandStore(context)

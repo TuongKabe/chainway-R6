@@ -55,14 +55,17 @@ class MainActivity : ComponentActivity() {
                 ActivityResultContracts.RequestMultiplePermissions(),
             ) { }
             val permissions = remember {
-                if (Build.VERSION.SDK_INT >= 31) {
-                    arrayOf(
+                buildList {
+                    if (Build.VERSION.SDK_INT >= 31) {
+                        addAll(listOf(
                         Manifest.permission.BLUETOOTH_SCAN,
                         Manifest.permission.BLUETOOTH_CONNECT,
-                    )
-                } else {
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
-                }
+                        ))
+                    } else {
+                        add(Manifest.permission.ACCESS_FINE_LOCATION)
+                    }
+                    if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+                }.toTypedArray()
             }
 
             LaunchedEffect(Unit) {

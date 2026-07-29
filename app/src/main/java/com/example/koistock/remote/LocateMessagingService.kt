@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.koistock.MainActivity
+import com.example.koistock.remoteLocateIntentFlow
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
@@ -61,15 +62,9 @@ class LocateMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        val data = message.data
-        val commandId = data["commandId"] ?: return
-        val sku = data["sku"] ?: return
-        val expiresAtStr = data["expiresAt"] ?: return
+        val command = RemoteLocatePayloadParser.parse(message.data) ?: return
 
-        val expiresAt = expiresAtStr.toLongOrNull() ?: return
-
-        val command = RemoteLocateCommand(commandId, sku, expiresAt)
-
+        remoteLocateIntentFlow.tryEmit(command)
         createNotificationChannel()
         showNotification(command)
     }

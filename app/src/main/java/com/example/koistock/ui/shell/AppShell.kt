@@ -36,7 +36,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.koistock.remote.remoteLocateIntentFlow
+import com.example.koistock.remoteLocateIntentFlow
 import com.example.koistock.data.remote.HttpAssignSessionRepository
 import com.example.koistock.data.remote.HttpCountInventoryRepository
 import com.example.koistock.data.remote.HttpGsheetWriteRepository
