@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.awaitCancellation
 
 class FakeRfidReader : RfidReader {
     private val state = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -28,7 +30,12 @@ class FakeRfidReader : RfidReader {
     private var connectResult = true
     var connectCount = 0
         private set
+    var connectDelayMs = 0L
     var deviceScanCount = 0
+        private set
+    var activeDeviceScans = 0
+        private set
+    var maxActiveDeviceScans = 0
         private set
     private var battery = 100
     var scannedSingle: ScannedTag? = null
@@ -44,15 +51,23 @@ class FakeRfidReader : RfidReader {
 
     override fun startDeviceScan(): Flow<BleDeviceInfo> = flow {
         deviceScanCount += 1
-        state.value = ConnectionState.Scanning
-        scanDevices.forEach { emit(it) }
-        if (state.value == ConnectionState.Scanning) {
-            state.value = ConnectionState.Disconnected
+        activeDeviceScans += 1
+        maxActiveDeviceScans = maxOf(maxActiveDeviceScans, activeDeviceScans)
+        try {
+            state.value = ConnectionState.Scanning
+            scanDevices.forEach { emit(it) }
+            awaitCancellation()
+        } finally {
+            activeDeviceScans -= 1
+            if (state.value == ConnectionState.Scanning) {
+                state.value = ConnectionState.Disconnected
+            }
         }
     }
 
     override suspend fun connect(mac: String): Boolean {
         connectCount += 1
+        delay(connectDelayMs)
         state.value = ConnectionState.Connecting(mac)
         state.value = if (connectResult) {
             ConnectionState.Connected(mac)

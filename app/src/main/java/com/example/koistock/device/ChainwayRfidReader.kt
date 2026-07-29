@@ -32,7 +32,6 @@ class ChainwayRfidReader(
     context: Context,
 ) : RfidReader {
     private val appContext = context.applicationContext
-    private val sdk = RFIDWithUHFBLE.getInstance()
     private val configGate = VerifiedConfigGate()
 
     private val mutableConnectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -86,12 +85,15 @@ class ChainwayRfidReader(
         }
     }
 
-    init {
-        sdk.init(appContext)
-        sdk.setConnectionStatusCallback(connectionCallback)
-        sdk.setInventoryCallback(inventoryCallback)
-        sdk.setKeyEventCallback(keyEventCallback)
+    private val sdkDelegate = lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        RFIDWithUHFBLE.getInstance().also { reader ->
+            reader.init(appContext)
+            reader.setConnectionStatusCallback(connectionCallback)
+            reader.setInventoryCallback(inventoryCallback)
+            reader.setKeyEventCallback(keyEventCallback)
+        }
     }
+    private val sdk: RFIDWithUHFBLE get() = sdkDelegate.value
 
     @SuppressLint("MissingPermission")
     override fun startDeviceScan(): Flow<BleDeviceInfo> = callbackFlow {
@@ -149,6 +151,10 @@ class ChainwayRfidReader(
         if (started.isFailure) {
             mutableConnectionState.value = ConnectionState.Disconnected
             if (cont.isActive) cont.resume(false)
+        }
+        cont.invokeOnCancellation {
+            runCatching { sdk.disconnect() }
+            mutableConnectionState.value = ConnectionState.Disconnected
         }
     }
 
@@ -298,6 +304,7 @@ class ChainwayRfidReader(
     override fun release() {
         triggerTracker.release()
         scope.coroutineContext.cancel()
+        if (!sdkDelegate.isInitialized()) return
         stopInventory()
         stopLocate()
         disconnect()

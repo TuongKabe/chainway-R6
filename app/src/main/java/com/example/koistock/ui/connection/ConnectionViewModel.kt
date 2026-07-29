@@ -6,12 +6,14 @@ import com.example.koistock.device.DevicePrefs
 import com.example.koistock.device.RfidReader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class ConnectionViewModel(
     private val reader: RfidReader,
@@ -28,10 +30,15 @@ class ConnectionViewModel(
 
     private val mutablePower = MutableStateFlow<Int?>(null)
     val power: StateFlow<Int?> = mutablePower.asStateFlow()
+    private var scanJob: Job? = null
 
     fun scan() {
+        if (state.value is ConnectionState.Connected) return
+        val previousScan = scanJob
+        previousScan?.cancel()
         mutableDevices.value = emptyList()
-        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+        scanJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            previousScan?.join()
             reader.startDeviceScan().collect { device ->
                 mutableDevices.update { current ->
                     current
@@ -51,6 +58,11 @@ class ConnectionViewModel(
                 }
             }
         }
+    }
+
+    fun stopScan() {
+        scanJob?.cancel()
+        scanJob = null
     }
 
     fun connect(mac: String) {
@@ -77,6 +89,7 @@ class ConnectionViewModel(
     }
 
     fun disconnect() {
+        stopScan()
         reader.disconnect()
         mutableBatteryPercent.value = null
     }
@@ -84,7 +97,9 @@ class ConnectionViewModel(
     suspend fun tryAutoReconnect(): Boolean {
         if (state.value is ConnectionState.Connected) return true
         val mac = prefs.lastMac.first() ?: return false
-        val connected = reader.connect(mac)
+        val connected = withTimeoutOrNull(AUTO_RECONNECT_TIMEOUT_MS) {
+            reader.connect(mac)
+        } ?: false
         if (connected) {
             mutableBatteryPercent.value = reader.batteryPercent()
             mutablePower.value = reader.getPower()
@@ -97,5 +112,9 @@ class ConnectionViewModel(
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             mutableBatteryPercent.value = reader.batteryPercent()
         }
+    }
+
+    private companion object {
+        const val AUTO_RECONNECT_TIMEOUT_MS = 8_000L
     }
 }

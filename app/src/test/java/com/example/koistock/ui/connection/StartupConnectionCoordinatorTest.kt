@@ -1,10 +1,25 @@
 package com.example.koistock.ui.connection
 
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class StartupConnectionCoordinatorTest {
+    @Test
+    fun cancelledReconnect_propagatesCancellation() = runTest {
+        val subject = StartupConnectionCoordinator { throw CancellationException("cancelled") }
+
+        var cancelled = false
+        try {
+            subject.run(true)
+        } catch (_: CancellationException) {
+            cancelled = true
+        }
+
+        assertEquals(true, cancelled)
+    }
+
     @Test
     fun pairingScan_requiresGrantedBluetoothPermission() {
         assertEquals(false, canStartPairingScan(null))

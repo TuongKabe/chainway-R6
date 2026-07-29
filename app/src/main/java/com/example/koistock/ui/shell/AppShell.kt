@@ -98,6 +98,7 @@ fun AppShell(
     scanProfileStore: ScanProfileStore,
     dataStore: DataStore<Preferences>,
     readerPermissionGranted: Boolean?,
+    onRequestReaderPermissions: () -> Unit,
 ) {
     val navController = rememberNavController()
     val state by vm.state.collectAsState()
@@ -287,6 +288,7 @@ fun AppShell(
                 PairingScreen(
                     vm = vm,
                     scanEnabled = canStartPairingScan(readerPermissionGranted),
+                    onRequestBluetoothPermission = onRequestReaderPermissions,
                     onConnected = { navController.popBackStack() },
                 )
             }

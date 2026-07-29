@@ -1,5 +1,7 @@
 package com.example.koistock.ui.connection
 
+import kotlinx.coroutines.CancellationException
+
 sealed interface StartupConnectionResult {
     data object WaitingForPermission : StartupConnectionResult
     data object Connected : StartupConnectionResult
@@ -22,7 +24,14 @@ class StartupConnectionCoordinator(
         handled = true
         if (!permissionGranted) return StartupConnectionResult.OpenPairing
 
-        return if (runCatching { reconnect() }.getOrDefault(false)) {
+        val connected = try {
+            reconnect()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            false
+        }
+        return if (connected) {
             StartupConnectionResult.Connected
         } else {
             StartupConnectionResult.OpenPairing

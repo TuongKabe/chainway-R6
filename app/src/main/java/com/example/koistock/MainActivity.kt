@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
                     scanProfileStore = scanProfileStore,
                     dataStore = dataStore,
                     readerPermissionGranted = readerPermissionGranted,
+                    onRequestReaderPermissions = { launcher.launch(requestedPermissions) },
                 )
             }
         }
