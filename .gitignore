@@ -16,3 +16,4 @@
 local.properties
 .tmp/
 .claude/
+.worktrees/
