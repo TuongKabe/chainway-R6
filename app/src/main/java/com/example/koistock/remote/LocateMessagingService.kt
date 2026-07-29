@@ -30,21 +30,25 @@ class LocateMessagingService : FirebaseMessagingService() {
 
     companion object {
         const val CHANNEL_ID = "remote_locate"
-        private const val WEB_BASE_URL = "https://kitleather.com"
+        private const val SUPABASE_URL = "https://fwetygumscetrwckoxpb.supabase.co"
+        private const val SUPABASE_ANON_KEY = "sb_publishable_c5ehYaWf6FMufDuDPaM7wg_s-xH3Uup"
         private const val DEVICE_ID = "koistock-handheld-01"
 
         fun registerToken(context: Context, token: String) {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    val url = URL("$WEB_BASE_URL/api/devices/register")
+                    val json = """{"fcm_token":"$token","enabled":true}"""
+                    val url = URL("$SUPABASE_URL/rest/v1/devices?id=eq.$DEVICE_ID")
                     val conn = url.openConnection() as HttpURLConnection
-                    conn.requestMethod = "POST"
+                    conn.requestMethod = "PATCH"
                     conn.doOutput = true
                     conn.setRequestProperty("Content-Type", "application/json")
-                    val json = """{"deviceId":"$DEVICE_ID","fcmToken":"$token"}"""
+                    conn.setRequestProperty("apikey", SUPABASE_ANON_KEY)
+                    conn.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
+                    conn.setRequestProperty("Prefer", "resolution=merge-duplicates")
                     OutputStreamWriter(conn.outputStream).use { it.write(json) }
                     conn.connect()
-                    conn.responseCode // consume
+                    conn.responseCode
                     conn.disconnect()
                 } catch (_: Exception) { }
             }
