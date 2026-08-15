@@ -17,7 +17,7 @@ data class DeviceRegistrationRequest(
     companion object {
         private const val BASE_URL = "https://kitleather.com"
         private const val DEVICE_ID = "koistock-handheld-01"
-        private const val REGISTRATION_SECRET = "0ee742affd205e5328b847c9f00f4a4e"
+        internal const val REGISTRATION_SECRET = "0ee742affd205e5328b847c9f00f4a4e"
 
         fun create(fcmToken: String) = DeviceRegistrationRequest(
             method = "POST",
