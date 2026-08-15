@@ -13,6 +13,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,10 +25,20 @@ import com.example.koistock.device.ConnectionState
 @Composable
 fun PairingScreen(
     vm: ConnectionViewModel,
+    scanEnabled: Boolean,
+    onRequestBluetoothPermission: () -> Unit,
     onConnected: () -> Unit,
 ) {
     val state by vm.state.collectAsState()
     val devices by vm.devices.collectAsState()
+
+    LaunchedEffect(scanEnabled) {
+        if (scanEnabled) vm.scan()
+    }
+
+    DisposableEffect(vm) {
+        onDispose(vm::stopScan)
+    }
 
     LaunchedEffect(state) {
         if (state is ConnectionState.Connected) {
@@ -50,8 +61,19 @@ fun PairingScreen(
             },
         )
 
+        if (!scanEnabled) {
+            Text("Cần cấp quyền Bluetooth để tìm thiết bị quét.")
+            Button(
+                onClick = onRequestBluetoothPermission,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Cấp quyền Bluetooth")
+            }
+        }
+
         Button(
             onClick = vm::scan,
+            enabled = scanEnabled,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Tìm thiết bị")

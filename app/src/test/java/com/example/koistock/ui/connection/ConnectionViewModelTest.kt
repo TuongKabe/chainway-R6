@@ -8,6 +8,7 @@ import com.example.koistock.device.FakeRfidReader
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -41,11 +42,13 @@ class ConnectionViewModelTest {
 
     @Test
     fun scan_populatesDevices() = runTest {
-        val vm = ConnectionViewModel(FakeRfidReader(), prefs(), this.backgroundScope)
+        val reader = FakeRfidReader()
+        val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)
 
         vm.scan()
         advanceUntilIdle()
 
+        assertEquals(1, reader.deviceScanCount)
         assertEquals(1, vm.devices.value.size)
         assertEquals("AA:BB:CC:DD:EE:FF", vm.devices.value.first().mac)
     }
@@ -87,6 +90,84 @@ class ConnectionViewModelTest {
             vm.state.value,
         )
         assertEquals(61, vm.batteryPercent.value)
+    }
+
+    @Test
+    fun scan_restartsWithoutConcurrentReaderScans() = runTest {
+        val reader = FakeRfidReader()
+        val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)
+
+        vm.scan()
+        vm.scan()
+        runCurrent()
+
+        assertEquals(2, reader.deviceScanCount)
+        assertEquals(1, reader.maxActiveDeviceScans)
+    }
+
+    @Test
+    fun stopScan_cancelsActiveReaderScan() = runTest {
+        val reader = FakeRfidReader()
+        val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)
+        vm.scan()
+        runCurrent()
+
+        vm.stopScan()
+        runCurrent()
+
+        assertEquals(0, reader.activeDeviceScans)
+    }
+
+    @Test
+    fun scan_immediatelyAfterStop_waitsForPreviousReaderScanToClose() = runTest {
+        val reader = FakeRfidReader()
+        val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)
+        vm.scan()
+        runCurrent()
+
+        vm.stopScan()
+        vm.scan()
+        runCurrent()
+
+        assertEquals(1, reader.maxActiveDeviceScans)
+        assertEquals(1, reader.activeDeviceScans)
+    }
+
+    @Test
+    fun scan_whenAlreadyConnected_doesNotStartDeviceScan() = runTest {
+        val reader = FakeRfidReader()
+        val vm = ConnectionViewModel(reader, prefs(), this.backgroundScope)
+        vm.connect("AA:BB:CC:DD:EE:FF")
+        advanceUntilIdle()
+
+        vm.scan()
+        runCurrent()
+
+        assertEquals(0, reader.deviceScanCount)
+    }
+
+    @Test
+    fun autoReconnect_whenAlreadyConnected_doesNotConnectAgain() = runTest {
+        val prefs = prefs()
+        prefs.saveMac("AA:BB:CC:DD:EE:FF")
+        val reader = FakeRfidReader()
+        val vm = ConnectionViewModel(reader, prefs, this.backgroundScope)
+        vm.connect("AA:BB:CC:DD:EE:FF")
+        advanceUntilIdle()
+
+        assertTrue(vm.tryAutoReconnect())
+        assertEquals(1, reader.connectCount)
+    }
+
+    @Test
+    fun autoReconnect_timesOutWhenReaderNeverCompletes() = runTest {
+        val prefs = prefs()
+        prefs.saveMac("AA:BB:CC:DD:EE:FF")
+        val reader = FakeRfidReader().apply { connectDelayMs = Long.MAX_VALUE }
+        val vm = ConnectionViewModel(reader, prefs, this.backgroundScope)
+
+        assertFalse(vm.tryAutoReconnect())
+        assertEquals(1, reader.connectCount)
     }
 
     @Test
