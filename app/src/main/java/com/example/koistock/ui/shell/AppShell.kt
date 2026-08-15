@@ -111,8 +111,8 @@ fun AppShell(
     val countInventoryRepo = remember { HttpCountInventoryRepository(api) }
     val locateCatalogStore = remember(dataStore) { DataStoreCatalogPayloadCache(dataStore) }
     val locateCatalogApi = remember { SupabaseCatalogFactory.create() }
-    val locateCatalogRepo = remember(locateCatalogApi, locateCatalogStore) {
-        SupabaseLocateCatalogRepository(locateCatalogApi, locateCatalogStore)
+    val locateCatalogRepo = remember(locateCatalogApi, locateCatalogStore, api) {
+        SupabaseLocateCatalogRepository(locateCatalogApi, locateCatalogStore, fallbackApi = api)
     }
     val products by productRepo.observeAll().collectAsState(initial = emptyList())
     val locations by locationRepo.observeAll().collectAsState(initial = emptyList())

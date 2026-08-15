@@ -45,17 +45,29 @@ data class CatalogPayload(
 
 data class CatalogEnvelope(val data: CatalogPayload)
 
+/** Chuẩn hoá itemCode để so khớp item ↔ tag: bỏ khoảng trắng đầu/cuối, không phân biệt hoa/thường. */
+internal fun String.normalizedItemCode(): String = trim().uppercase()
+
 object CatalogDeltaMerger {
     fun apply(current: CatalogPayload, delta: CatalogPayload): CatalogPayload {
         val items = current.items.associateBy { it.itemCode }.toMutableMap()
-        delta.items.forEach { if (it.isActive) items[it.itemCode] = it else items.remove(it.itemCode) }
+        // Chỉ đánh dấu "đã xoá" khi delta xác nhận rõ item không còn active; không suy diễn
+        // từ việc itemCode chưa có trong `items`, vì tag của item mới có thể đến trước item đó
+        // trong cùng đợt đồng bộ — nếu suy diễn sai sẽ làm rớt tag đó vĩnh viễn (revision chỉ tiến).
+        val removedItemCodes = mutableSetOf<String>()
+        delta.items.forEach {
+            if (it.isActive) items[it.itemCode] = it else {
+                items.remove(it.itemCode)
+                removedItemCodes += it.itemCode.normalizedItemCode()
+            }
+        }
         val tags = current.tags.associateBy { it.epc }.toMutableMap()
         delta.tags.forEach { if (it.status.equals("active", true)) tags[it.epc] = it else tags.remove(it.epc) }
-        val activeSkus = items.keys
+        tags.values.removeIf { it.itemCode.normalizedItemCode() in removedItemCodes }
         return CatalogPayload(
             revision = maxOf(current.revision, delta.revision),
             items = items.values.sortedBy { it.itemCode },
-            tags = tags.values.filter { it.itemCode in activeSkus }.sortedBy { it.epc },
+            tags = tags.values.sortedBy { it.epc },
         )
     }
 }
@@ -88,6 +100,10 @@ class DataStoreCatalogPayloadCache(
 class SupabaseLocateCatalogRepository(
     private val api: SupabaseCatalogApi,
     private val cache: CatalogPayloadCache,
+    /** Backend gốc (rfid.bangtuong.online). Dùng làm fallback tìm SKU khi Supabase catalog
+     * chưa có SKU đó (ví dụ item/tag chưa được đồng bộ sang Supabase) — người dùng vẫn tìm
+     * được ngay từ nút "Tìm trên máy chủ" thay vì phải đợi đồng bộ backend xử lý xong. */
+    private val fallbackApi: KoiApiService? = null,
 ) : LocateCatalogRepo {
     override suspend fun loadCached(): List<LocatableProduct>? = cache.readPayload()?.toLocatable()
 
@@ -103,15 +119,25 @@ class SupabaseLocateCatalogRepository(
     override suspend fun findBySku(sku: String): LocatableProduct? {
         val query = sku.trim()
         if (query.isEmpty()) return null
-        val payload = cache.readPayload() ?: return null
-        return payload.toLocatable().firstOrNull { it.product.sku.equals(query, true) }
-            ?: payload.toLocatable().singleOrNull { it.product.sku.contains(query, true) }
+        // Nút này ghi rõ "tìm trên máy chủ": luôn lấy snapshot đầy đủ từ server thay vì chỉ
+        // đọc cache cục bộ, để không bao giờ báo "không tìm thấy" chỉ vì cache máy thiếu SKU.
+        // Đồng thời tự chữa cache nếu nó từng bị thiếu dữ liệu do lỗi merge trước đó.
+        val payload = api.snapshot().data
+        cache.writePayload(payload)
+        val locatable = payload.toLocatable()
+        val found = locatable.firstOrNull { it.product.sku.equals(query, true) }
+            ?: locatable.singleOrNull { it.product.sku.contains(query, true) }
+        if (found != null) return found
+        // SKU chưa có trong Supabase catalog (ví dụ chưa được đồng bộ) — thử tra thẳng backend gốc
+        // để người dùng vẫn tìm được ngay, thay vì phải đợi đồng bộ xử lý xong.
+        return fallbackApi?.let { runCatching { findBySkuViaKoiApi(it, query) }.getOrNull() }
     }
 
     private fun CatalogPayload.toLocatable(): List<LocatableProduct> {
-        val activeTags = tags.filter { it.status.equals("active", true) }.groupBy { it.itemCode }
+        val activeTags = tags.filter { it.status.equals("active", true) }
+            .groupBy { it.itemCode.normalizedItemCode() }
         return items.asSequence().filter { it.isActive }.mapNotNull { item ->
-            val itemTags = activeTags[item.itemCode].orEmpty()
+            val itemTags = activeTags[item.itemCode.normalizedItemCode()].orEmpty()
             if (itemTags.isEmpty()) return@mapNotNull null
             LocatableProduct(
                 product = Product(

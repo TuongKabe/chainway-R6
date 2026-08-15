@@ -25,20 +25,7 @@ class HttpLocateCatalogRepository(
     private val metadataTtlMs: Long = METADATA_TTL_MS,
 ) : LocateCatalogRepo {
     override suspend fun loadCached(): List<LocatableProduct>? = cache.read()?.items
-    override suspend fun findBySku(sku: String): LocatableProduct? {
-        val query = sku.trim()
-        if (query.isEmpty()) return null
-        val candidates = api.searchItems(query).data.filter(ItemDto::isActive)
-        val item = candidates.firstOrNull { it.itemCode.equals(query, ignoreCase = true) }
-            ?: candidates.singleOrNull()
-            ?: return null
-        val activeTags = api.getTagsByItem(item.itemCode).data
-            .filter { it.status.equals("active", ignoreCase = true) }
-            .filter { it.itemCode.equals(item.itemCode, ignoreCase = true) }
-            .map { it.toTagMapping() }
-        return if (activeTags.isEmpty()) null else item.toLocatableProduct(activeTags)
-    }
-
+    override suspend fun findBySku(sku: String): LocatableProduct? = findBySkuViaKoiApi(api, sku)
 
     override suspend fun refresh(): List<LocatableProduct> = coroutineScope {
         val previous = cache.read()
@@ -74,31 +61,6 @@ class HttpLocateCatalogRepository(
         result
     }
 
-    private fun ItemDto.toLocatableProduct(tags: List<TagMapping>) = LocatableProduct(
-        product = Product(
-            sku = itemCode,
-            name = itemName,
-            unit = stockUom,
-            trackingMode = TrackingMode.valueOf(trackingMode),
-            quantity = tags.size.toLong(),
-            locationCode = tags.firstNotNullOfOrNull { it.locationCode } ?: defaultWarehouse.orEmpty(),
-            imageUrl = imageUrl,
-            syncRev = syncRev?.toLongOrNull() ?: 0L,
-            origin = "api",
-        ),
-        activeTags = tags.sortedBy(TagMapping::epc),
-    )
-
-    private fun EpcTagDto.toTagMapping() = TagMapping(
-        epc = epc,
-        sku = itemCode,
-        unitSerial = serialNo,
-        status = status,
-        locationCode = locationCode ?: warehouse,
-        syncRev = syncRev?.toLongOrNull() ?: 0L,
-        origin = "api",
-    )
-
     private companion object {
         const val METADATA_TTL_MS = 6 * 60 * 60 * 1000L
     }
@@ -107,3 +69,47 @@ class HttpLocateCatalogRepository(
 internal fun tagSignature(tags: List<TagMapping>): String = tags
     .sortedBy(TagMapping::epc)
     .joinToString("||") { "${it.epc}|${it.status.lowercase()}|${it.locationCode.orEmpty()}|${it.syncRev}" }
+
+internal fun ItemDto.toLocatableProduct(tags: List<TagMapping>) = LocatableProduct(
+    product = Product(
+        sku = itemCode,
+        name = itemName,
+        unit = stockUom,
+        trackingMode = TrackingMode.valueOf(trackingMode),
+        quantity = tags.size.toLong(),
+        locationCode = tags.firstNotNullOfOrNull { it.locationCode } ?: defaultWarehouse.orEmpty(),
+        imageUrl = imageUrl,
+        syncRev = syncRev?.toLongOrNull() ?: 0L,
+        origin = "api",
+    ),
+    activeTags = tags.sortedBy(TagMapping::epc),
+)
+
+internal fun EpcTagDto.toTagMapping() = TagMapping(
+    epc = epc,
+    sku = itemCode,
+    unitSerial = serialNo,
+    status = status,
+    locationCode = locationCode ?: warehouse,
+    syncRev = syncRev?.toLongOrNull() ?: 0L,
+    origin = "api",
+)
+
+/**
+ * Tra SKU trực tiếp qua REST API (bỏ qua Supabase catalog hoàn toàn). Dùng làm fallback cho
+ * nút "Tìm trên máy chủ" khi SKU tồn tại ở backend nhưng chưa có mặt trong Supabase catalog
+ * (ví dụ đang chờ đồng bộ) — người dùng vẫn tìm được ngay thay vì phải đợi backend xử lý.
+ */
+internal suspend fun findBySkuViaKoiApi(api: KoiApiService, sku: String): LocatableProduct? {
+    val query = sku.trim()
+    if (query.isEmpty()) return null
+    val candidates = api.searchItems(query).data.filter(ItemDto::isActive)
+    val item = candidates.firstOrNull { it.itemCode.equals(query, ignoreCase = true) }
+        ?: candidates.singleOrNull()
+        ?: return null
+    val activeTags = api.getTagsByItem(item.itemCode).data
+        .filter { it.status.equals("active", ignoreCase = true) }
+        .filter { it.itemCode.equals(item.itemCode, ignoreCase = true) }
+        .map { it.toTagMapping() }
+    return if (activeTags.isEmpty()) null else item.toLocatableProduct(activeTags)
+}
